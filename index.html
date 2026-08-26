@@ -179,6 +179,8 @@
 
   <div id="toolbar">
     <button class="primary" id="btn-open">📂 פתיחת קובץ</button>
+    <button id="btn-capture-select" class="icon-only" title="צלם ובחר כאן — פותח שיתוף מסך; אפשר לעבור בינתיים לעמוד אחר באוצריא ואז לחזור וללחוץ 'צלם עכשיו'">🖥️</button>
+    <button id="btn-paste-extract" class="icon-only" title="הדבק גזרת מסך וחלץ — גזרו קודם עם כלי הגזירה של המערכת (למשל Win+Shift+S), ואז לחצו כאן - הגזרה תיטען ותיחלץ ממנה טקסט אוטומטית">✂️</button>
     <span class="popover-anchor">
       <button id="btn-recent" title="קבצים אחרונים">🕘 אחרונים</button>
       <div id="recent-popover">
@@ -187,8 +189,6 @@
         <div id="recent-empty">אין עדיין קבצים אחרונים</div>
       </div>
     </span>
-    <button id="btn-paste-extract" class="icon-only" title="הדבק גזרת מסך וחלץ — גזרו קודם עם כלי הגזירה של המערכת (למשל Win+Shift+S), ואז לחצו כאן - הגזרה תיטען ותיחלץ ממנה טקסט אוטומטית">✂️</button>
-    <button id="btn-capture-select" class="icon-only" title="צלם ובחר כאן — פותח שיתוף מסך; אפשר לעבור בינתיים לעמוד אחר באוצריא ואז לחזור וללחוץ 'צלם עכשיו'">🖥️</button>
     <span class="filename" id="current-name">לא נבחר קובץ</span>
     <button id="btn-prev" class="icon-only" disabled>▶</button>
     <span id="page-info">-</span>
@@ -1201,7 +1201,9 @@ async function startScreenCaptureSelect(){
   }
   let stream;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'never' } });
+    // displaySurface:'monitor' הוא רמז (לא מובטח) לבקש מסך שלם ולא רק חלון/לשונית -
+    // ניסיון אחרון להימנע ממצב שבו נתפס רק המשטח של התוסף עצמו.
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: 'monitor', cursor: 'never' } });
   } catch(e){
     return; // המשתמש ביטל את דיאלוג ההרשאה
   }
