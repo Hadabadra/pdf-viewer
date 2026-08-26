@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "com.chadbedera.pdfviewer",
+  "name": "צופה PDF+OCR",
+  "version": "2.5.2",
+  "description": "פתיחת PDF/תמונה/טקסט עם OCR בעברית; חילוץ טקסט בלחיצה ימנית ובכפתור בסרגל הכלים - בתוסף ובכל הספרייה, כולל ספרי PDF.",
+  "author": "חד בדרא",
+  "homepage": "https://github.com/e0548433917-gif/pdf-viewer",
+  "type": "webapp",
+  "category": "Utilities",
+  "stability": "beta",
+  "minAppVersion": "0.9.97",
+  "sdkVersion": "1.x",
+  "entrypoint": "index.html",
+  "network": {
+    "enabled": false,
+    "allowlist": []
+  },
+  "permissions": [
+    "plugin.storage.read",
+    "plugin.storage.write",
+    "events.subscribe:theme.changed",
+    "feedback.send_email",
+    "reader.context_menu",
+    "reader.toolbar",
+    "library.content.read",
+    "app.startup_contributions",
+    "app.run_on_startup",
+    "notifications.send"
+  ],
+  "contributes": {
+    "toolTab": {
+      "title": "צופה PDF+OCR",
+      "order": 51,
+      "defaultPinned": true,
+      "iconName": "document_pdf_24_regular"
+    },
+    "startup": {
+      "toolbarItems": [
+        {
+          "id": "chadbedera-extract-text-toolbar",
+          "type": "button",
+          "title": "חלץ טקסט (מנסה אינדוקס אוצריא, ואם אין - הצעה לגזירת מסך)",
+          "icon": "cut_24_regular",
+          "contexts": ["reader-pdf"],
+          "openPlugin": false
+        }
+      ],
+      "contextMenuItems": [
+        {
+          "id": "chadbedera-extract-text",
+          "type": "item",
+          "title": "חלץ טקסט",
+          "icon": "copy_24_regular",
+          "openPlugin": true
+        }
+      ]
+    }
+  }
+}
