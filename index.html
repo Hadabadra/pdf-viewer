@@ -226,6 +226,10 @@
   <div id="about-panel">
     <div class="whats-new-box">
       <h4>🆕 מה חדש</h4>
+      <span class="changelog-version">v2.5.7</span>
+      <ul>
+        <li>תוקן: "צלם עכשיו" תפס את התוסף עצמו במקום את העמוד היעד (כי חזרה לתוסף כדי ללחוץ שינתה את מה שמוצג). עכשיו הצילום קורה אוטומטית אחרי ספירה לאחור, בלי צורך לחזור לתוסף.</li>
+      </ul>
       <span class="changelog-version">v2.5.6</span>
       <ul>
         <li>🖥️ "צלם ובחר כאן" כבר לא צולם מיד - השיתוף נשאר פעיל כדי לאפשר לעבור לעמוד אחר באוצריא ואז לחזור וללחוץ "📸 צלם עכשיו" (ניסיוני - אם לא עובד אצלכם, "✂️ הדבק גזרת מסך וחלץ" הוא החלופה הבטוחה).</li>
@@ -335,8 +339,9 @@
   <div id="status"></div>
   <div id="ocr-progress"></div>
   <div id="capture-armed-banner">
-    <span>📡 השיתוף פעיל — אפשר לעבור לעמוד הרצוי באוצריא, ואז לחזור לכאן וללחוץ "צלם עכשיו"</span>
-    <button id="btn-capture-now" class="primary">📸 צלם עכשיו</button>
+    <span>📡 עברו עכשיו לעמוד הרצוי באוצריא - הצילום יתבצע אוטומטית בעוד <span id="capture-countdown">5</span> שניות</span>
+    <button id="btn-capture-extend" class="secondary" title="עוד 5 שניות">+5</button>
+    <button id="btn-capture-now" class="primary" title="לצלם מיד, בלי לחכות">📸 עכשיו</button>
     <button id="btn-capture-arm-cancel" class="secondary">ביטול</button>
   </div>
   <div id="custom-ctx-menu"><button id="ctx-extract-text">✂️ חלץ טקסט</button></div>
@@ -375,6 +380,8 @@ const els = {
   captureConfirm: document.getElementById('btn-capture-confirm'),
   captureCancel: document.getElementById('btn-capture-cancel'),
   captureArmedBanner: document.getElementById('capture-armed-banner'),
+  captureCountdown: document.getElementById('capture-countdown'),
+  captureExtend: document.getElementById('btn-capture-extend'),
   captureNow: document.getElementById('btn-capture-now'),
   captureArmCancel: document.getElementById('btn-capture-arm-cancel'),
   fileInput: document.getElementById('file-input'),
@@ -1176,13 +1183,15 @@ async function loadPastedBlobAndExtract(blob){
 }
 
 // ===== צילום מסך ובחירת אזור בתוך התוסף (getDisplayMedia) =====
-// השיתוף נשאר פעיל ("armed") עד שלוחצים "צלם עכשיו" - כדי לאפשר לעבור בינתיים
-// לעמוד/לשונית אחרת באוצריא ולצלם את מה שרואים שם, ולא רק את התוסף עצמו ברגע
-// שנפתח דיאלוג הבחירה. תלוי בכך שה-webview של התוסף נשאר חי ברקע כשעוברים
-// ללשונית אחרת (לא נבדק בפועל בתוך אוצריא) - אם לא, "צלם עכשיו" פשוט לא יעבוד
-// כי אין למי ללחוץ עליו.
+// אם "צלם עכשיו" נלחץ רק אחרי שחוזרים לתוסף, הצילום תופס את התוסף עצמו (מה
+// שרואים באותו רגע) ולא את העמוד שרצינו - כי הזרם משקף את מה שמוצג *עכשיו*
+// בחלון המשותף, לא הקפאה של מה שהיה כשהתחלנו. הפתרון: צילום אוטומטי אחרי
+// ספירה לאחור, כדי שהלחיצה על "עכשיו" בפועל לא נדרשת בכלל - עוברים לעמוד
+// הרצוי ומחכים, בלי לחזור לתוסף. תלוי בכך שה-setTimeout ממשיך לרוץ כשה-
+// webview של התוסף ברקע (לא הופסק/הושמד) - זה נראה תקין (הבאנר עצמו נשאר
+// חי כשחוזרים), אבל טיימר ברקע לא נבדק לעומק.
 let captureSourceCanvas = null, captureDrag = null;
-let armedStream = null, armedVideo = null;
+let armedStream = null, armedVideo = null, armedTimerId = null, armedSecondsLeft = 0;
 
 async function startScreenCaptureSelect(){
   if (armedStream){ els.captureArmedBanner.classList.add('show'); return; }
@@ -1203,12 +1212,31 @@ async function startScreenCaptureSelect(){
   armedStream = stream;
   armedVideo = video;
   els.captureArmedBanner.classList.add('show');
+  startArmedCountdown(5);
   // אם המשתמש עוצר את השיתוף מתפריט המערכת/הדפדפן במקום מהתוסף עצמו
   const track = stream.getVideoTracks()[0];
   if (track) track.addEventListener('ended', cancelArmedCapture);
 }
 
+function startArmedCountdown(seconds){
+  armedSecondsLeft = seconds;
+  els.captureCountdown.textContent = String(armedSecondsLeft);
+  clearInterval(armedTimerId);
+  armedTimerId = setInterval(() => {
+    armedSecondsLeft -= 1;
+    if (armedSecondsLeft <= 0){
+      clearInterval(armedTimerId);
+      armedTimerId = null;
+      captureArmedFrameNow();
+      return;
+    }
+    els.captureCountdown.textContent = String(armedSecondsLeft);
+  }, 1000);
+}
+
 function cancelArmedCapture(){
+  clearInterval(armedTimerId);
+  armedTimerId = null;
   if (armedStream) armedStream.getTracks().forEach(t => t.stop());
   armedStream = null;
   armedVideo = null;
@@ -1301,6 +1329,7 @@ els.captureConfirm.addEventListener('click', async () => {
 els.captureSelect.addEventListener('click', startScreenCaptureSelect);
 els.captureNow.addEventListener('click', captureArmedFrameNow);
 els.captureArmCancel.addEventListener('click', cancelArmedCapture);
+els.captureExtend.addEventListener('click', () => { if (armedStream) startArmedCountdown(armedSecondsLeft + 5); });
 
 async function pasteAndExtractFromClipboard(){
   if (!navigator.clipboard || !navigator.clipboard.read){
