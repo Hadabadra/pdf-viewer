@@ -17,16 +17,12 @@
     "allowlist": []
   },
   "permissions": [
-    "plugin.storage.read",
-    "plugin.storage.write",
-    "events.subscribe:theme.changed",
     "feedback.send_email",
     "reader.context_menu",
     "reader.toolbar",
     "library.content.read",
     "app.startup_contributions",
-    "app.run_on_startup",
-    "notifications.send"
+    "app.run_on_startup"
   ],
   "contributes": {
     "toolTab": {
