@@ -178,17 +178,17 @@
         <div id="recent-empty">אין עדיין קבצים אחרונים</div>
       </div>
     </span>
-    <button id="btn-paste-extract" title="גזרו קודם עם כלי הגזירה של המערכת (למשל Win+Shift+S), ואז לחצו כאן - הגזרה תיטען ותיחלץ ממנה טקסט אוטומטית">✂️ הדבק גזרת מסך וחלץ</button>
-    <button id="btn-capture-select" title="צילום מסך ובחירת אזור בתוך התוסף עצמו, בלי לצאת לכלי הגזירה של המערכת">🖥️ צלם ובחר כאן</button>
+    <button id="btn-paste-extract" class="icon-only" title="הדבק גזרת מסך וחלץ — גזרו קודם עם כלי הגזירה של המערכת (למשל Win+Shift+S), ואז לחצו כאן - הגזרה תיטען ותיחלץ ממנה טקסט אוטומטית">✂️</button>
+    <button id="btn-capture-select" class="icon-only" title="צלם ובחר כאן — צילום מסך ובחירת אזור בתוך התוסף עצמו, בלי לצאת לכלי הגזירה של המערכת">🖥️</button>
     <span class="filename" id="current-name">לא נבחר קובץ</span>
     <button id="btn-prev" class="icon-only" disabled>▶</button>
     <span id="page-info">-</span>
     <button id="btn-next" class="icon-only" disabled>◀</button>
     <button id="btn-zoom-out" class="icon-only" disabled>🔍-</button>
     <button id="btn-zoom-in" class="icon-only" disabled>🔍+</button>
-    <button id="btn-embedded-text" disabled>📝 טקסט מוטבע</button>
-    <button id="btn-ocr" disabled>🔎 OCR לעמוד</button>
-    <button id="btn-save-embedded" disabled title="בתכנון: שמירת PDF עם הטקסט שזוהה ב-OCR מוטבע בו כשכבת טקסט נסתרת (PDF ניתן לחיפוש)">💾 שמירה עם טקסט מוטבע</button>
+    <button id="btn-embedded-text" class="icon-only" disabled title="טקסט מוטבע">📝</button>
+    <button id="btn-ocr" class="icon-only" disabled title="OCR לעמוד">🔎</button>
+    <button id="btn-save-embedded" class="icon-only" disabled title="שמירה עם טקסט מוטבע — בתכנון: שמירת PDF עם הטקסט שזוהה ב-OCR מוטבע בו כשכבת טקסט נסתרת (PDF ניתן לחיפוש)">💾</button>
     <div class="spacer"></div>
   </div>
 
@@ -217,6 +217,20 @@
   <div id="about-panel">
     <div class="whats-new-box">
       <h4>🆕 מה חדש</h4>
+      <span class="changelog-version">v2.5.4</span>
+      <ul>
+        <li>סרגל הכלים צומצם: כפתורים משניים (הדבק גזרת מסך, צלם ובחר כאן, טקסט מוטבע, OCR לעמוד, שמירה עם טקסט מוטבע) הפכו לאיקונים בלבד עם תיאור מלא ב-tooltip - כדי שהסרגל לא ישבור לכמה שורות בפאנל צר.</li>
+        <li>עבר לגרסה יציבה.</li>
+      </ul>
+      <span class="changelog-version">v2.5.3</span>
+      <ul>
+        <li>ניקוי עיצוב: הוסרו צבעים מקודדים בקוד ה-CSS לטובת עקיבה מלאה אחרי ערכת הנושא של אוצריא (כולל תיקון הדגשת הבחירה בכלי צילום המסך שהייתה נשארת בצבע קבוע).</li>
+        <li>נוקו מה-manifest הרשאות שממילא ניתנות אוטומטית לכל תוסף - ללא שינוי בפועל.</li>
+      </ul>
+      <span class="changelog-version">v2.5.2</span>
+      <ul>
+        <li>התוסף עבר לניהול גרסאות במאגר גיט ציבורי עם פרסום אוטומטי לחנות - שינוי תשתיתי, ללא השפעה על השימוש.</li>
+      </ul>
       <span class="changelog-version">v2.4.0</span>
       <ul>
         <li>כפתור הסרגל (✂️) בספר PDF בספרייה חזר לנסות קודם טקסט מאונדקס של אוצריא (כמו במקור) - ורק אם אין, מציע לגזור. שני המקרים מוצגים כהתראה בספרייה עצמה, בלי לעבור לתוסף (אלא אם לוחצים על ההתראה).</li>
