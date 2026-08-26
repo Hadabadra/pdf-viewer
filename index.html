@@ -217,6 +217,10 @@
   <div id="about-panel">
     <div class="whats-new-box">
       <h4>🆕 מה חדש</h4>
+      <span class="changelog-version">v2.5.5</span>
+      <ul>
+        <li>תוקן באג בכלי "🖥️ צלם ובחר כאן": מלבן הבחירה המשיך לזוז עם העכבר גם אחרי שחרור הכפתור, מה שמנע לחיצה נוחה על "חלץ" עם עכבר (עבד רק במגע). עכשיו הבחירה ננעלת במקומה מיד עם שחרור העכבר.</li>
+      </ul>
       <span class="changelog-version">v2.5.4</span>
       <ul>
         <li>סרגל הכלים צומצם: כפתורים משניים (הדבק גזרת מסך, צלם ובחר כאן, טקסט מוטבע, OCR לעמוד, שמירה עם טקסט מוטבע) הפכו לאיקונים בלבד עם תיאור מלא ב-tooltip - כדי שהסרגל לא ישבור לכמה שורות בפאנל צר.</li>
@@ -1220,7 +1224,9 @@ window.addEventListener('mouseup', () => {
   const w = parseFloat(els.captureSel.style.width) || 0;
   const h = parseFloat(els.captureSel.style.height) || 0;
   if (w > 5 && h > 5) els.captureActions.classList.add('show');
-  captureDrag.done = true;
+  // מפסיק את הגרירה בפועל - בלי זה mousemove ממשיך "לגרור" את המלבן אחרי
+  // העכבר גם בלי שהכפתור לחוץ, כי הוא רק בדק truthy ולא באמת נעצר.
+  captureDrag = null;
 });
 
 els.captureCancel.addEventListener('click', closeCaptureOverlay);
