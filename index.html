@@ -157,13 +157,13 @@
     display:none;gap:10px;z-index:101;}
   #capture-actions.show{display:flex;}
 
-  #capture-armed-banner{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
-    display:none;align-items:center;gap:10px;background:var(--color-primary);color:var(--color-on-primary);
-    padding:8px 12px;border-radius:var(--radius-pill);font-size:0.82em;z-index:102;
-    box-shadow:0 4px 16px var(--color-shadow-lg);max-width:min(92vw,480px);}
+  /* חלק מסרגל הכלים עצמו (לא רצועה נפרדת) - מופיע/נעלם עם class show, בלי
+     לתפוס שורה/מקום נוסף מעבר לסרגל הקיים. */
+  #capture-armed-banner{display:none;align-items:center;gap:6px;background:var(--color-primary);
+    color:var(--color-on-primary);padding:4px 4px 4px 10px;border-radius:var(--radius-pill);
+    font-size:0.78em;white-space:nowrap;}
   #capture-armed-banner.show{display:flex;}
-  #capture-armed-banner span{flex:1;}
-  #capture-armed-banner button{padding:5px 10px;font-size:0.9em;}
+  #capture-armed-banner button{padding:5px 9px;font-size:0.9em;}
   #capture-armed-banner button.primary{background:var(--color-on-primary);color:var(--color-primary);border-color:var(--color-on-primary);}
 </style>
 </head>
@@ -199,6 +199,12 @@
     <button id="btn-ocr" class="icon-only" disabled title="OCR לעמוד">🔎</button>
     <button id="btn-save-embedded" class="icon-only" disabled title="שמירה עם טקסט מוטבע — בתכנון: שמירת PDF עם הטקסט שזוהה ב-OCR מוטבע בו כשכבת טקסט נסתרת (PDF ניתן לחיפוש)">💾</button>
     <div class="spacer"></div>
+    <div id="capture-armed-banner" title="עברו עכשיו לעמוד הרצוי באוצריא - הצילום יתבצע אוטומטית">
+      <span>📡 בעוד <span id="capture-countdown">5</span> ש'</span>
+      <button id="btn-capture-extend" class="secondary icon-only" title="עוד 5 שניות">+5</button>
+      <button id="btn-capture-now" class="primary icon-only" title="צלם מיד">📸</button>
+      <button id="btn-capture-arm-cancel" class="secondary icon-only" title="ביטול">✕</button>
+    </div>
   </div>
 
   <div id="body">
@@ -226,6 +232,10 @@
   <div id="about-panel">
     <div class="whats-new-box">
       <h4>🆕 מה חדש</h4>
+      <span class="changelog-version">v2.6.0</span>
+      <ul>
+        <li>פקדי "צלם ובחר כאן" עברו לתוך סרגל הכלים העליון - כבר לא תופסים שורה נוספת על המסך.</li>
+      </ul>
       <span class="changelog-version">v2.5.7</span>
       <ul>
         <li>תוקן: "צלם עכשיו" תפס את התוסף עצמו במקום את העמוד היעד (כי חזרה לתוסף כדי ללחוץ שינתה את מה שמוצג). עכשיו הצילום קורה אוטומטית אחרי ספירה לאחור, בלי צורך לחזור לתוסף.</li>
@@ -338,12 +348,6 @@
   <input type="file" id="file-input">
   <div id="status"></div>
   <div id="ocr-progress"></div>
-  <div id="capture-armed-banner">
-    <span>📡 עברו עכשיו לעמוד הרצוי באוצריא - הצילום יתבצע אוטומטית בעוד <span id="capture-countdown">5</span> שניות</span>
-    <button id="btn-capture-extend" class="secondary" title="עוד 5 שניות">+5</button>
-    <button id="btn-capture-now" class="primary" title="לצלם מיד, בלי לחכות">📸 עכשיו</button>
-    <button id="btn-capture-arm-cancel" class="secondary">ביטול</button>
-  </div>
   <div id="custom-ctx-menu"><button id="ctx-extract-text">✂️ חלץ טקסט</button></div>
 </div>
 
