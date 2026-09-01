@@ -41,10 +41,6 @@
   #toolbar{display:flex;align-items:center;gap:6px;padding:8px 10px;
     background:var(--color-surface);border-bottom:1px solid var(--color-outline);
     flex-wrap:wrap;flex-shrink:0;}
-  /* בזמן שהצילום מזוין (armed) - מחליפים את שאר הסרגל בפקדי הצילום במקום
-     להוסיף אותם עליו, כדי שלא יתווספו שורות נוספות בפאנל צר. */
-  #toolbar.armed > *:not(#capture-armed-banner){display:none;}
-  #toolbar.armed{justify-content:flex-start;}
   #toolbar .filename{font-weight:600;max-width:220px;white-space:nowrap;overflow:hidden;
     text-overflow:ellipsis;font-size:0.85em;}
   #toolbar .spacer{flex:1;}
@@ -176,6 +172,12 @@
 
   <header class="topbar">
     <h1>צופה PDF+OCR</h1>
+    <div id="capture-armed-banner" title="עברו עכשיו לעמוד הרצוי באוצריא - הצילום יתבצע אוטומטית">
+      <span>📡 בעוד <span id="capture-countdown">5</span> ש'</span>
+      <button id="btn-capture-extend" class="secondary icon-only" title="עוד 5 שניות">+5</button>
+      <button id="btn-capture-now" class="primary icon-only" title="צלם מיד">📸</button>
+      <button id="btn-capture-arm-cancel" class="secondary icon-only" title="ביטול">✕</button>
+    </div>
     <div class="topbar-actions">
       <button id="about-toggle" class="secondary compact">💡 אודות</button>
     </div>
@@ -203,12 +205,6 @@
     <button id="btn-ocr" class="icon-only" disabled title="OCR לעמוד">🔎</button>
     <button id="btn-save-embedded" class="icon-only" disabled title="שמירה עם טקסט מוטבע — בתכנון: שמירת PDF עם הטקסט שזוהה ב-OCR מוטבע בו כשכבת טקסט נסתרת (PDF ניתן לחיפוש)">💾</button>
     <div class="spacer"></div>
-    <div id="capture-armed-banner" title="עברו עכשיו לעמוד הרצוי באוצריא - הצילום יתבצע אוטומטית">
-      <span>📡 בעוד <span id="capture-countdown">5</span> ש'</span>
-      <button id="btn-capture-extend" class="secondary icon-only" title="עוד 5 שניות">+5</button>
-      <button id="btn-capture-now" class="primary icon-only" title="צלם מיד">📸</button>
-      <button id="btn-capture-arm-cancel" class="secondary icon-only" title="ביטול">✕</button>
-    </div>
   </div>
 
   <div id="body">
@@ -236,6 +232,10 @@
   <div id="about-panel">
     <div class="whats-new-box">
       <h4>🆕 מה חדש</h4>
+      <span class="changelog-version">v2.6.2</span>
+      <ul>
+        <li>פקדי הצילום עברו לרווח הפנוי שבסרגל העליון (ליד הכותרת), בלי להסתיר או להזיז שום כפתור בסרגל הכלים.</li>
+      </ul>
       <span class="changelog-version">v2.6.0</span>
       <ul>
         <li>פקדי "צלם ובחר כאן" עברו לתוך סרגל הכלים העליון - כבר לא תופסים שורה נוספת על המסך.</li>
@@ -1203,7 +1203,7 @@ let captureSourceCanvas = null, captureDrag = null;
 let armedStream = null, armedVideo = null, armedTimerId = null, armedSecondsLeft = 0;
 
 async function startScreenCaptureSelect(){
-  if (armedStream){ els.toolbar.classList.add('armed'); els.captureArmedBanner.classList.add('show'); return; }
+  if (armedStream){ els.captureArmedBanner.classList.add('show'); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
     showStatus('הסביבה הזו לא תומכת בצילום מסך בתוך התוסף - אפשר להשתמש בכפתור "הדבק גזרת מסך וחלץ" עם כלי הגזירה של המערכת (Win+Shift+S)');
     return;
@@ -1222,7 +1222,6 @@ async function startScreenCaptureSelect(){
   try { await video.play(); } catch(e){}
   armedStream = stream;
   armedVideo = video;
-  els.toolbar.classList.add('armed');
   els.captureArmedBanner.classList.add('show');
   startArmedCountdown(5);
   // אם המשתמש עוצר את השיתוף מתפריט המערכת/הדפדפן במקום מהתוסף עצמו
@@ -1253,7 +1252,6 @@ function cancelArmedCapture(){
   armedStream = null;
   armedVideo = null;
   els.captureArmedBanner.classList.remove('show');
-  els.toolbar.classList.remove('armed');
 }
 
 function captureArmedFrameNow(){
