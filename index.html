@@ -41,6 +41,10 @@
   #toolbar{display:flex;align-items:center;gap:6px;padding:8px 10px;
     background:var(--color-surface);border-bottom:1px solid var(--color-outline);
     flex-wrap:wrap;flex-shrink:0;}
+  /* בזמן שהצילום מזוין (armed) - מחליפים את שאר הסרגל בפקדי הצילום במקום
+     להוסיף אותם עליו, כדי שלא יתווספו שורות נוספות בפאנל צר. */
+  #toolbar.armed > *:not(#capture-armed-banner){display:none;}
+  #toolbar.armed{justify-content:flex-start;}
   #toolbar .filename{font-weight:600;max-width:220px;white-space:nowrap;overflow:hidden;
     text-overflow:ellipsis;font-size:0.85em;}
   #toolbar .spacer{flex:1;}
@@ -383,6 +387,7 @@ const els = {
   captureActions: document.getElementById('capture-actions'),
   captureConfirm: document.getElementById('btn-capture-confirm'),
   captureCancel: document.getElementById('btn-capture-cancel'),
+  toolbar: document.getElementById('toolbar'),
   captureArmedBanner: document.getElementById('capture-armed-banner'),
   captureCountdown: document.getElementById('capture-countdown'),
   captureExtend: document.getElementById('btn-capture-extend'),
@@ -1198,7 +1203,7 @@ let captureSourceCanvas = null, captureDrag = null;
 let armedStream = null, armedVideo = null, armedTimerId = null, armedSecondsLeft = 0;
 
 async function startScreenCaptureSelect(){
-  if (armedStream){ els.captureArmedBanner.classList.add('show'); return; }
+  if (armedStream){ els.toolbar.classList.add('armed'); els.captureArmedBanner.classList.add('show'); return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia){
     showStatus('הסביבה הזו לא תומכת בצילום מסך בתוך התוסף - אפשר להשתמש בכפתור "הדבק גזרת מסך וחלץ" עם כלי הגזירה של המערכת (Win+Shift+S)');
     return;
@@ -1217,6 +1222,7 @@ async function startScreenCaptureSelect(){
   try { await video.play(); } catch(e){}
   armedStream = stream;
   armedVideo = video;
+  els.toolbar.classList.add('armed');
   els.captureArmedBanner.classList.add('show');
   startArmedCountdown(5);
   // אם המשתמש עוצר את השיתוף מתפריט המערכת/הדפדפן במקום מהתוסף עצמו
@@ -1247,6 +1253,7 @@ function cancelArmedCapture(){
   armedStream = null;
   armedVideo = null;
   els.captureArmedBanner.classList.remove('show');
+  els.toolbar.classList.remove('armed');
 }
 
 function captureArmedFrameNow(){
