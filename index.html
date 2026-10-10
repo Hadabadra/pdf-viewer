@@ -1432,7 +1432,7 @@ async function extractLibraryTextAndShow(bookId, ref, book, selectedText, bookTy
     }
     if (!text){
       const msg = (bookType === 'pdf')
-        ? 'לא נמצא טקסט מאונדקס עבור ספר ה-PDF הזה במאגר של אוצריא. לתוסף אין גישה לקובץ ה-PDF עצמו של ספרי הספרייה, ולכן אינו יכול לקרוא את שכבת הטקסט המוטבעת בו או להריץ OCR (בשונה מקובץ שנפתח ישירות דרך "פתיחת קובץ" בתוסף). ראו פירוט בטאב אודות.'
+        ? 'לא נמצא טקסט מאונדקס עבור ספר ה-PDF הזה במאגר של אוצריא. לחצו על הכפתור "פתח ב-PDF+OCR" בסרגל הקורא כדי לפתוח את קובץ ה-PDF עצמו בתוסף - שם אפשר לקרוא את שכבת הטקסט המוטבעת או להריץ OCR.'
         : 'לא נמצא טקסט לחילוץ במיקום זה';
       await Otzaria.call('notifications.showInApp', { message: msg, type: 'error' });
       return;
@@ -1460,6 +1460,7 @@ async function handleLibraryMenuClick(data){
 // (הישנה או החדשה) מוצגת בספרייה עצמה - בלי לעבור לדף התוסף. tapOpenPlugin
 // מאפשר למשתמש לפתוח את התוסף ביוזמתו אם ירצה, בלחיצה על ההתראה עצמה.
 async function handleLibraryToolbarClick(data){
+  if (data && data.itemId === LIB_OPEN_ITEM_ID) { await openLibraryBookFile(data); return; }
   if (!data || data.itemId !== LIB_TOOLBAR_ITEM_ID) return;
 
   let label = data.currentBook || '';
@@ -1487,6 +1488,40 @@ async function handleLibraryToolbarClick(data){
     type: 'error',
     tapOpenPlugin: true
   });
+}
+
+// 2.7.0: פתיחת הקובץ עצמו של ספר PDF מהספרייה (library.openBookFile, אוצריא 0.9.98)
+const LIB_OPEN_ITEM_ID = 'chadbedera-open-book-file';
+async function openUrlInViewer(url, name){
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const blob = await resp.blob();
+  const file = new File([blob], name || 'file.pdf', { type: blob.type || '' });
+  openFileObject(file);
+}
+async function openLibraryBookFile(data){
+  if (!data) return;
+  const q = data.currentBookUid ? { bookUid: data.currentBookUid } : { bookId: data.currentBookId, type: data.currentType || data.currentBookType || 'pdf' };
+  showStatus('פותח את קובץ הספר...');
+  let res = null;
+  try { res = await Otzaria.call('library.openBookFile', q); } catch(e){ res = { success: false, error: { message: (e && e.message) || String(e) } }; }
+  const d = res && res.success !== false ? (res.data || res) : null;
+  if (!d || !d.url){
+    const er = (res && res.error) || {};
+    showStatus('לא ניתן לפתוח את קובץ הספר' + (er.message ? ': ' + er.message : '') + '. ספרי טקסט מהמאגר אינם קבצים - אפשר לחלץ מהם טקסט בכפתור "חלץ טקסט".');
+    return;
+  }
+  try { await openUrlInViewer(d.url, d.name || ((data.currentBook || 'ספר') + '.pdf')); }
+  catch(e){ showStatus('שגיאה בקריאת קובץ הספר: ' + ((e && e.message) || String(e))); }
+}
+// קובץ שנשלח מתוסף אחר (למשל סייר הקבצים) דרך plugin.openOther: param = { name, url } או { name, dataUrl }
+async function handlePageOpened(data){
+  const p = data && data.param;
+  if (!p || typeof p !== 'object') return;
+  const src = p.url || p.dataUrl;
+  if (!src) return;
+  try { await openUrlInViewer(src, p.name); }
+  catch(e){ showStatus('לא ניתן לפתוח את הקובץ שנשלח' + (p.name ? ' (' + p.name + ')' : '') + ': ' + ((e && e.message) || String(e))); }
 }
 
 // ===== About / diagnostics =====
@@ -1599,7 +1634,14 @@ els.sendFeedback.addEventListener('click', async () => {
   els.sendFeedback.disabled = true;
   els.feedbackStatus.textContent = 'שולח...';
   try {
-    await Otzaria.call('feedback.sendEmail', {
+    // 2.7.0: קודם ערוץ הדיווח הרשמי של אוצריא (feedback.report, 0.9.97); דוא״ל כגיבוי
+    let viaReport = null;
+    try {
+      const r = await Otzaria.call('feedback.report', { details: String(msg).slice(0, 5000), reportType: 'other' });
+      viaReport = r && (r.data !== undefined ? r.data : r);
+    } catch(e){ viaReport = null; }
+    if (viaReport === 'cancelled') throw new Error('השליחה בוטלה');
+    if (viaReport !== 'sent' && viaReport !== 'queued') await Otzaria.call('feedback.sendEmail', {
       to: 'E0548433917@outlook.com',
       subject: 'משוב על תוסף צופה PDF עם OCR',
       body: msg,
@@ -1632,6 +1674,7 @@ function waitForOtzaria(elapsed){
     Otzaria.on('theme.changed', applyTheme);
     Otzaria.on('reader.context_menu_item_clicked', handleLibraryMenuClick);
     Otzaria.on('reader.toolbar_item_clicked', handleLibraryToolbarClick);
+    Otzaria.on('plugin.page_opened', handlePageOpened);
     boot();
     return;
   }

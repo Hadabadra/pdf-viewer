@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "id": "com.chadbedera.pdfviewer",
   "name": "צופה PDF+OCR",
-  "version": "2.6.3",
+  "version": "2.7.0",
   "description": "פתיחת PDF/תמונה/טקסט עם OCR בעברית; חילוץ טקסט בלחיצה ימנית ובכפתור בסרגל הכלים - בתוסף ובכל הספרייה, כולל ספרי PDF.",
   "author": "חד בדרא",
   "homepage": "https://github.com/e0548433917-gif/pdf-viewer",
   "type": "webapp",
   "category": "Utilities",
   "stability": "stable",
-  "minAppVersion": "0.9.97",
+  "minAppVersion": "0.9.98",
   "sdkVersion": "1.x",
   "entrypoint": "index.html",
   "network": {
@@ -21,8 +21,7 @@
     "reader.context_menu",
     "reader.toolbar",
     "library.content.read",
-    "app.startup_contributions",
-    "app.run_on_startup"
+    "app.startup_contributions"
   ],
   "contributes": {
     "toolTab": {
@@ -38,8 +37,20 @@
           "type": "button",
           "title": "חלץ טקסט (מנסה אינדוקס אוצריא, ואם אין - הצעה לגזירת מסך)",
           "icon": "cut_24_regular",
-          "contexts": ["reader-pdf"],
+          "contexts": [
+            "reader-pdf"
+          ],
           "openPlugin": false
+        },
+        {
+          "id": "chadbedera-open-book-file",
+          "type": "button",
+          "title": "פתח ב-PDF+OCR (הקובץ עצמו של הספר)",
+          "icon": "document_pdf_24_regular",
+          "contexts": [
+            "reader-pdf"
+          ],
+          "openPlugin": true
         }
       ],
       "contextMenuItems": [

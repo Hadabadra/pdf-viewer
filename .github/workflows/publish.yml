@@ -17,7 +17,7 @@ name: ולידציה ופרסום לחנות אוצריא
 
 on:
   push:
-    branches: [main]
+    branches: [main, upgrade-998]
     paths:
       - 'manifest.json'
       - 'index.html'
@@ -57,7 +57,7 @@ jobs:
           path: .
           otzaria-user: ${{ secrets.OTZARIA_USER }}
           otzaria-password: ${{ secrets.OTZARIA_PASSWORD }}
-          publish: ${{ github.event.inputs.publish || 'auto' }}
+          publish: ${{ github.event.inputs.publish || (github.ref == 'refs/heads/main' && 'auto' || 'false') }}
           force: ${{ github.event.inputs.force || false }}
 
       - name: שומר גודל החבילה
@@ -92,7 +92,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "ענף בדיקה ($GITHUB_REF) - בלי Release"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "ה-Release $TAG כבר קיים - מדלג על יצירה"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else

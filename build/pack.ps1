@@ -133,7 +133,7 @@ $stageDir = Join-Path $env:TEMP "pdf-viewer-stage"
 if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $stageDir | Out-Null
 
-$excludeDirs = @('build', 'dist', '.git', '.github', '.claude')
+$excludeDirs = @('build', 'dist', '.git', '.github', '.claude', 'docs')
 $excludeFiles = @('README.md', '.gitignore', '.gitattributes')
 
 Get-ChildItem -Path $root -Force | Where-Object {
