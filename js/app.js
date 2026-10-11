@@ -192,7 +192,7 @@
     else if (e.key === 'End' && mod) { e.preventDefault(); V.goTo(V.count); }
     else if (e.key === 'Home' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(1); }
     else if (e.key === 'End' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(V.count); }
-    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && V.zoomMode === 'fit-page') {
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && typeof V.zoomMode === 'string') {
       e.preventDefault();
       const forward = (e.key === 'ArrowLeft') === (document.documentElement.dir === 'rtl');
       forward ? V.next() : V.prev();

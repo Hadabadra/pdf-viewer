@@ -41,6 +41,7 @@
     const ref = boxFor(V.page || 1), av = availableSize();
     const fw = av.w / ref.w;
     if (mode === 'fit-page') return Math.min(fw, av.h / ref.h);
+    if (mode === 'fit-height') return av.h / ref.h;
     return Math.min(fw, 4);
   }
   V.computeScale = computeScale;

@@ -350,7 +350,7 @@ kbd {
   background: var(--color-surface-container-high); border-radius: var(--radius-pill); box-shadow: var(--shadow-3);
 }
 .findbar input {
-  width: 13em; border: none; background: transparent; padding: 0.4em 0.7em; outline: none;
+  width: 9em; border: none; background: transparent; padding: 0.4em 0.7em; outline: none;
 }
 .findbar .find-count { font-size: 0.8em; color: var(--color-on-surface-variant); min-width: 4.5em; text-align: center; white-space: nowrap; }
 .findbar .find-opt { font-size: 0.8em; display: flex; align-items: center; gap: 0.25em; padding: 0 0.4em; color: var(--color-on-surface-variant); white-space: nowrap; cursor: pointer; }
