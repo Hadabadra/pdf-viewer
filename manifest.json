@@ -3,7 +3,7 @@
   "id": "com.chadbedera.pdfviewer",
   "name": "ספריית PDF+OCR",
   "version": "4.0.0",
-  "description": "טוען תיקייה פעם אחת, מאתר מסמך לפי חלק מהשם, וקורא אותו עם לשוניות, זום, תוכן עניינים וחיפוש בתוך המסמך.",
+  "description": "טוען תיקייה פעם אחת, מאתר מסמך לפי חלק מהשם, וקורא אותו עם לשוניות, זום, תוכן עניינים וחיפוש בתוך המסמך. כולל חילוץ טקסט וזיהוי טקסט (OCR) בעברית.",
   "author": "חד בדרא ומעמע",
   "entrypoint": "index.html",
   "icon": "icon/icon.png",
@@ -11,11 +11,17 @@
   "sdkVersion": "1.x",
   "stability": "stable",
   "permissions": [
-    "fs.user_files.read"
+    "fs.user_files.read",
+    "fs.user_files.write",
+    "network.localhost",
+    "app.open_url"
   ],
   "network": {
-    "enabled": false,
-    "allowlist": []
+    "enabled": true,
+    "allowlist": [
+      "127.0.0.1",
+      "localhost"
+    ]
   },
   "contributes": {
     "toolTab": {

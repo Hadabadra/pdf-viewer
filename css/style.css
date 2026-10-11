@@ -707,3 +707,59 @@ body.resizing-lib { user-select: none; cursor: col-resize; }
 .ts-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8em; color: var(--color-on-surface-variant); }
 .kbd-help > div { margin-bottom: 0.45em; line-height: 1.5; }
 .kbd-help b { font-weight: 700; color: var(--color-on-surface); direction: ltr; unicode-bidi: isolate; }
+
+
+/* ═════════ חילוץ טקסט / OCR ═════════ */
+.pop-menu {
+  position: fixed; z-index: 400; min-width: 16em; padding: 4px;
+  background: var(--color-surface-container-high); color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px var(--shadow-soft);
+}
+.pop-menu[hidden] { display: none; }
+.pop-menu button {
+  display: flex; align-items: center; gap: 0.6em; width: 100%; padding: 0.55em 0.7em;
+  border: none; border-radius: var(--radius-sm); background: transparent; color: inherit;
+  font: inherit; text-align: start; cursor: pointer;
+}
+.pop-menu button:hover, .pop-menu button:focus-visible { background: var(--color-secondary-subtle); outline: none; }
+.pop-menu svg { width: 1.2em; height: 1.2em; color: var(--color-on-surface-variant); flex: 0 0 auto; }
+.pop-menu .mi-text { flex: 1; }
+.pop-menu .mi-kbd { font-size: 0.8em; color: var(--color-on-surface-variant); direction: ltr; unicode-bidi: isolate; }
+
+.text-panel {
+  flex: 0 0 auto; width: min(24em, 80vw); display: flex; flex-direction: column;
+  background: var(--color-surface); border-inline-start: 1px solid var(--color-outline-variant);
+  min-height: 0; z-index: 3;
+}
+.text-panel[hidden] { display: none; }
+.tp-head { display: flex; align-items: flex-start; gap: 0.4em; padding: 0.6em 0.8em 0.2em; }
+.tp-titles { flex: 1; min-width: 0; }
+.tp-title { font-weight: 700; color: var(--color-primary); font-size: 0.95em; }
+.tp-sub { font-size: 0.8em; color: var(--color-on-surface-variant); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-tools { display: flex; gap: 2px; padding: 0 0.6em 0.4em; border-bottom: 1px solid var(--color-outline-variant); }
+.tp-output {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 0.8em 1em; white-space: pre-wrap;
+  font-family: var(--font-main); line-height: 1.7; outline: none; user-select: text;
+}
+.tp-output:empty::before { content: attr(data-empty); color: var(--color-on-surface-variant); font-family: var(--font-ui); font-size: 0.85em; }
+.tp-output[contenteditable="true"] { background: var(--color-surface-container-high); }
+.tp-footer { padding: 0.4em 1em; font-size: 0.78em; color: var(--color-on-surface-variant); border-top: 1px solid var(--color-outline-variant); min-height: 1.6em; }
+@media (max-width: 700px) { .text-panel { position: absolute; inset-block: 0; inset-inline-end: 0; box-shadow: 0 8px 24px var(--shadow-soft); } }
+
+.ocr-progress {
+  position: absolute; z-index: 20; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: min(26em, 90%); padding: 0.7em 0.9em; border-radius: var(--radius-md);
+  background: var(--color-surface-container-high); color: var(--color-on-surface);
+  box-shadow: 0 4px 16px var(--shadow-soft);
+}
+.ocr-progress[hidden] { display: none; }
+.op-row { display: flex; align-items: center; gap: 0.6em; font-size: 0.9em; margin-bottom: 0.5em; }
+.op-row span { flex: 1; }
+.op-row .btn-secondary { padding: 4px 12px; font-size: 0.85em; }
+.op-bar { height: 0.3em; background: var(--color-primary-subtle); border-radius: var(--radius-pill); overflow: hidden; }
+.op-bar > div { height: 100%; width: 0; background: var(--color-primary); border-radius: var(--radius-pill); transition: width 0.2s; }
+.op-bar.indeterminate > div { width: 35%; animation: opIndet 1.1s ease-in-out infinite; }
+@keyframes opIndet { 0% { margin-inline-start: -35%; } 100% { margin-inline-start: 100%; } }
+.ocr-diag { margin-top: 0.5em; padding: 0.4em 0.7em; border-radius: var(--radius-sm); background: var(--color-surface-container-high); font-size: 0.85em; }
+.ocr-diag.ok { background: var(--color-primary-subtle); color: var(--color-primary); }

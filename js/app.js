@@ -38,6 +38,8 @@
     printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     pin: '<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>',
+    scan: '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="15" x2="13" y2="15"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
     minimize: '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>'
   };
@@ -154,7 +156,7 @@
   }
 
   /* ═════════════════════ מצב ═════════════════════ */
-  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false };
+  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false, ocrEngine: 'tesseract', ocrQuality: '2', ocrLines: true };
   const S = {
     settings: Object.assign({}, DEFAULT_SETTINGS),
     folders: [],             // [{ id, token, name, path, scannedAt, count }]
@@ -277,7 +279,7 @@
       'toc-panel', 'toc-list', 'pages-scroll', 'pages', 'doc-status', 'stage', 'btn-toc', 'btn-library', 'btn-settings',
       'tb-prev', 'tb-next', 'page-input', 'page-total', 'tb-zoom-out', 'tb-zoom-in', 'zoom-select', 'tb-fit-width', 'tb-fit-page',
       'no-text-chip', 'settings-panel', 'settings-scrim', 'tabbar', 'tabs', 'tab-add', 'btn-fullscreen',
-      'tb-crop', 'tb-print', 'crop-hint', 'modal-scrim', 'modal', 'fs-exit', 'lib-resizer', 'tb-hand'
+      'tb-crop', 'tb-print', 'crop-hint', 'modal-scrim', 'modal', 'fs-exit', 'lib-resizer', 'tb-hand', 'tb-ocr', 'ocr-menu', 'text-panel', 'tp-title', 'tp-sub', 'tp-output', 'tp-footer', 'tp-close', 'ocr-progress', 'op-label', 'op-cancel', 'op-bar', 'op-fill'
     ].forEach((id) => { el[id] = $(id); });
   }
 
@@ -1412,8 +1414,10 @@
   }
 
   /* ═════════════════════ חיתוך אזור כתמונה ═════════════════════ */
-  function setCrop(on) {
+  function setCrop(on, ocr) {
     V.crop = !!on && !!V.pdf;
+    V.cropOcr = V.crop && !!ocr;
+    el['crop-hint'].textContent = V.cropOcr ? 'גררו על העמוד לזיהוי טקסט באזור · Esc לביטול' : 'גררו על העמוד לבחירת אזור · Esc לביטול';
     el['pages-scroll'].classList.toggle('cropping', V.crop);
     el['tb-crop'].classList.toggle('active', V.crop);
     el['crop-hint'].hidden = !V.crop;
@@ -1469,7 +1473,9 @@
   async function finishCrop(n, x0, y0, x1, y1) {
     const pdf = V.pdf;
     if (!pdf) return;
+    const forOcr = !!V.cropOcr;
     setCrop(false);
+    if (forOcr) { ocrRegion(n, x0, y0, x1, y1); return; }
     openModal('<div class="modal-title">מכין תמונה…</div><div class="modal-body center"><div class="spinner"></div></div>');
     try {
       const scale = Math.max(2, Math.min(4, V.scale * 2));
@@ -1483,13 +1489,13 @@
       canvas.width = 0; canvas.height = 0;
       const blob = await canvasBlob(out, 'image/png');
       if (!blob) throw new Error('toBlob');
-      showCropDialog(blob, sw, sh, n);
+      showCropDialog(blob, sw, sh, n, out);
     } catch (e) {
       closeModal();
       toast.err('יצירת התמונה נכשלה');
     }
   }
-  function showCropDialog(blob, w, h, n) {
+  function showCropDialog(blob, w, h, n, srcCanvas) {
     const url = URL.createObjectURL(blob);
     const en = S.byPath.get(V.path);
     const fname = ((en ? en.disp : 'מסמך') + ' - עמוד ' + n).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.png';
@@ -1499,6 +1505,7 @@
       '<div class="modal-meta">עמוד ' + n + ' · ' + w.toLocaleString('he-IL') + '×' + h.toLocaleString('he-IL') + ' פיקסלים · ' + fmtSize(blob.size) + '</div></div>' +
       '<div class="modal-actions"><button class="btn-primary" id="crop-copy"><span data-icon="copy"></span>העתקה ללוח</button>' +
       '<button class="btn-secondary" id="crop-save"><span data-icon="download"></span>שמירה כקובץ</button>' +
+      '<button class="btn-secondary" id="crop-ocr"><span data-icon="scan"></span>זיהוי טקסט</button>' +
       '<button class="btn-secondary" id="crop-again"><span data-icon="crop"></span>חיתוך נוסף</button>' +
       '<button class="btn-secondary" id="crop-close">סגירה</button></div>',
       () => URL.revokeObjectURL(url));
@@ -1515,6 +1522,7 @@
       document.body.appendChild(a); a.click(); a.remove();
       toast.msg('שמירת התמונה התחילה');
     };
+    $('crop-ocr').onclick = () => { const c = srcCanvas; closeModal(); if (c) ocrCanvasToPanel(c, 'זיהוי טקסט: אזור בעמוד ' + n); };
     $('crop-again').onclick = () => { closeModal(); setCrop(true); };
     $('crop-close').onclick = closeModal;
   }
@@ -1864,6 +1872,9 @@
     buildSegmented('seg-view', [{ id: 'tree', label: 'עץ תיקיות' }, { id: 'flat', label: 'רשימה' }], 'view', () => { S.limit = 200; renderLibrary(); });
     setToggle('set-restore', S.settings.restoreLast, (v) => { S.settings.restoreLast = v; saveSettings(); });
     setToggle('set-fsfloat', S.settings.fsFloatBtn, (v) => { S.settings.fsFloatBtn = v; saveSettings(); applyFsFloat(); });
+    buildSegmented('seg-ocr-engine', [{ id: 'tesseract', label: 'Tesseract' }, { id: 'windows', label: 'Windows' }], 'ocrEngine', () => { ocrApplySettings(); if (S.settings.ocrEngine === 'windows') refreshBridgeStatus(false); });
+    buildSegmented('seg-ocr-quality', [{ id: '1.5', label: 'מהירה' }, { id: '2', label: 'רגילה' }, { id: '3', label: 'גבוהה' }], 'ocrQuality');
+    setToggle('set-ocr-lines', S.settings.ocrLines, (v) => { S.settings.ocrLines = v; saveSettings(); ocrApplySettings(); });
     setToggle('set-fshidetb', S.settings.fsHideToolbar, (v) => { S.settings.fsHideToolbar = v; saveSettings(); applyFsHide(); });
     setToggle('set-fshidetabs', S.settings.fsHideTabs, (v) => { S.settings.fsHideTabs = v; saveSettings(); applyFsHide(); });
     setToggle('set-invert', S.settings.invert, (v) => { S.settings.invert = v; saveSettings(); document.body.classList.toggle('invert-pages', v); });
@@ -1941,6 +1952,7 @@
     wireCrop();
     wireLibResizer();
     wireHand();
+    wireOcr();
     el['tb-crop'].onclick = () => setCrop(!V.crop);
     el['tb-print'].onclick = openPrintDialog;
     el['modal-scrim'].addEventListener('mousedown', (e) => { if (e.target === el['modal-scrim']) closeModal(); });
@@ -1993,6 +2005,8 @@
       const tag = document.activeElement && document.activeElement.tagName;
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag || '') || (document.activeElement && document.activeElement.isContentEditable);
       const modalOpen = !el['modal-scrim'].hidden;
+      if (mod && !e.shiftKey && !e.altKey && V.pdf && !modalOpen && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); extractPage(); return; }
+      if (mod && !e.shiftKey && !e.altKey && V.pdf && !modalOpen && (e.key === 'r' || e.key === 'R')) { e.preventDefault(); startRegionOcr(); return; }
       if (mod && e.shiftKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); if (!modalOpen) openTabSearch(); return; }
       if (mod && (e.key === 'Tab' || e.key === 'PageDown' || e.key === 'PageUp')) {
         e.preventDefault();
@@ -2026,9 +2040,295 @@
         showLibrary();
         el.search.focus(); el.search.select();
       } else if (e.key === 'Escape') {
-        if (!el['modal-scrim'].hidden) closeModal(); else if (el['settings-panel'].classList.contains('open')) closeSettings(); else if (V.crop) setCrop(false); else if (F.open) closeFind(); else if (isFs()) setFullscreen(false);
+        if (!el['ocr-menu'].hidden) closeOcrMenu(); else if (!el['modal-scrim'].hidden) closeModal(); else if (el['settings-panel'].classList.contains('open')) closeSettings(); else if (V.crop) setCrop(false); else if (F.open) closeFind(); else if (isFs()) setFullscreen(false);
       }
     });
+  }
+
+  /* ═════════════════════ חילוץ טקסט וזיהוי טקסט (OCR) ═════════════════════ */
+  const OCR = { busy: false, source: '' };
+  function ocrApplySettings() {
+    if (!window.OcrEngine) return;
+    window.OcrEngine.opts.engine = S.settings.ocrEngine === 'windows' ? 'windows' : 'tesseract';
+    window.OcrEngine.opts.lines = !!S.settings.ocrLines;
+  }
+  function docName() { const en = V.path && S.byPath.get(V.path); return en ? en.disp : ''; }
+  function ocrQuality() { const q = parseFloat(S.settings.ocrQuality); return q > 0 ? q : 2; }
+
+  const prog = {
+    cancel: null,
+    show(label, onCancel) {
+      el['ocr-progress'].hidden = false; el['op-label'].textContent = label || '';
+      el['op-bar'].classList.add('indeterminate'); el['op-fill'].style.width = '';
+      prog.cancel = onCancel || null; el['op-cancel'].hidden = !onCancel;
+    },
+    update(label, p) {
+      if (label) el['op-label'].textContent = label;
+      if (typeof p === 'number') { el['op-bar'].classList.remove('indeterminate'); el['op-fill'].style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + '%'; }
+    },
+    hide() { el['ocr-progress'].hidden = true; prog.cancel = null; }
+  };
+
+  function showText(text, o) {
+    o = o || {};
+    el['text-panel'].hidden = false;
+    el['tb-ocr'].classList.add('active');
+    el['tp-output'].textContent = text || '';
+    el['tp-output'].setAttribute('contenteditable', 'false');
+    const ed = el['text-panel'].querySelector('[data-tact="edit"]'); if (ed) ed.classList.remove('active');
+    el['tp-title'].textContent = o.title || 'טקסט';
+    el['tp-sub'].textContent = o.sub || '';
+    OCR.source = o.source || '';
+    updateTextFooter();
+  }
+  function getText() { const o = el['tp-output']; return String(o.innerText != null ? o.innerText : o.textContent).replace(/\u00a0/g, ' ').trim(); }
+  function updateTextFooter() {
+    const t = getText();
+    const words = t ? t.split(/\s+/).filter(Boolean).length : 0;
+    el['tp-footer'].textContent = t ? words.toLocaleString('he-IL') + ' מילים · ' + t.length.toLocaleString('he-IL') + ' תווים' + (OCR.source === 'ocr' ? ' · זיהוי טקסט' : '') : '';
+  }
+  function selectedTextIn(node) {
+    const s = window.getSelection();
+    if (!s || s.isCollapsed || !node.contains(s.anchorNode)) return '';
+    return String(s).trim();
+  }
+  async function copyOutText() {
+    const t = selectedTextIn(el['tp-output']) || getText();
+    if (!t) { toast.msg('אין טקסט להעתקה'); return; }
+    try { await navigator.clipboard.writeText(t); toast.ok('הטקסט הועתק'); }
+    catch (e) {
+      const r = document.createRange(); r.selectNodeContents(el['tp-output']);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { document.execCommand('copy'); toast.ok('הטקסט הועתק'); } catch (e2) { toast.err('ההעתקה נכשלה'); }
+    }
+  }
+  async function saveOutText() {
+    const text = getText();
+    if (!text) { toast.msg('אין טקסט לשמירה'); return; }
+    const base = ((docName() || 'טקסט').replace(/\.[^.]+$/, '') + (OCR.source === 'ocr' ? ' - זיהוי טקסט' : '')).replace(/[\\/:*?"<>|]+/g, ' ').trim();
+    const blob = new Blob(['\ufeff' + text.replace(/\n/g, '\r\n')], { type: 'text/plain;charset=utf-8' });
+    const up = await call('fs.beginBinaryWrite', { purpose: 'user-file', expectedSize: blob.size }, 2);
+    if (up.success && up.data && up.data.uploadUrl) {
+      try {
+        const res = await fetch(up.data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'text/plain' }, body: blob });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const done = await call('fs.commitUserFileWrite', { writeToken: up.data.writeToken, suggestedName: base, extension: 'txt', title: 'שמירת הטקסט' }, 2);
+        if (done.success) { if (!(done.data && done.data.cancelled)) toast.ok('נשמר' + (done.data && done.data.name ? ': ' + done.data.name : '')); return; }
+        toast.err(errText(done)); return;
+      } catch (e) { toast.err('השמירה נכשלה'); return; }
+    }
+    if (up.error && /permission/.test(up.error.code || '')) { toast.err('אין הרשאה לשמירת קבצים. אפשר לאשר אותה בהגדרות התוסף.'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = base + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  function needDoc() {
+    if (V.pdf) return true;
+    toast.msg('יש לפתוח מסמך קודם');
+    return false;
+  }
+  async function embeddedPageText(n) {
+    const page = await V.pdf.getPage(n);
+    const tc = await page.getTextContent();
+    let out = '';
+    for (const it of tc.items) {
+      if (typeof it.str !== 'string') continue;
+      out += it.str;
+      if (it.hasEOL) out += '\n';
+    }
+    return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  async function embeddedRegionText(n, x0, y0, x1, y1) {
+    const page = await V.pdf.getPage(n);
+    const tc = await page.getTextContent();
+    if (!tc.items.length) return '';
+    const vp = page.getViewport({ scale: 1 });
+    let out = '';
+    tc.items.forEach((it) => {
+      if (typeof it.str !== 'string' || !it.transform) return;
+      const pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      const cx = (pt[0] + (it.width || 0) / 2) / vp.width, cy = (pt[1] - (it.height || 0) / 2) / vp.height;
+      if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) out += it.str + (it.hasEOL ? '\n' : '');
+      else if (it.hasEOL && out && !out.endsWith('\n')) out += '\n';
+    });
+    return out.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  async function ocrFailure(e) {
+    toast.err('שגיאה בזיהוי הטקסט: ' + ((e && e.message) || 'לא ידועה'));
+  }
+  async function ocrCanvasToPanel(canvas, title) {
+    if (OCR.busy) return;
+    if (!window.OcrEngine) { toast.err('מנוע הזיהוי לא נטען'); return; }
+    ocrApplySettings();
+    OCR.busy = true;
+    prog.show('טוען את מנוע הזיהוי…');
+    try {
+      const text = await window.OcrEngine.recognize(canvas, (p) => prog.update('מזהה טקסט…', p));
+      showText(text, { title, sub: docName(), source: 'ocr' });
+      if (!text) toast.msg('לא זוהה טקסט');
+    } catch (e) { ocrFailure(e); } finally { OCR.busy = false; prog.hide(); }
+  }
+  async function extractPage(n) {
+    if (!needDoc() || OCR.busy) return;
+    n = n || V.current;
+    try {
+      const text = await embeddedPageText(n);
+      if (text) { showText(text, { title: 'טקסט מוטבע: עמוד ' + n, sub: docName(), source: 'embedded' }); return; }
+    } catch (e) { /* ממשיכים לזיהוי */ }
+    toast.msg('אין טקסט מוטבע בעמוד. מריץ זיהוי טקסט…');
+    await ocrPage(n);
+  }
+  async function ocrPage(n) {
+    if (!needDoc() || OCR.busy) return;
+    n = n || V.current;
+    const pdf = V.pdf;
+    try {
+      const { canvas } = await renderToCanvas(pdf, n, ocrQuality() * 1.5, 24e6);
+      await ocrCanvasToPanel(canvas, 'זיהוי טקסט: עמוד ' + n);
+      canvas.width = 0; canvas.height = 0;
+    } catch (e) { ocrFailure(e); }
+  }
+  async function ocrRegion(n, x0, y0, x1, y1) {
+    const pdf = V.pdf;
+    if (!pdf || OCR.busy) return;
+    try {
+      const emb = await embeddedRegionText(n, x0, y0, x1, y1);
+      if (emb) { showText(emb, { title: 'טקסט מוטבע: אזור בעמוד ' + n, sub: docName(), source: 'embedded' }); return; }
+      const { canvas } = await renderToCanvas(pdf, n, Math.max(2.5, ocrQuality() * 1.5), 32e6);
+      const sx = Math.round(x0 * canvas.width), sy = Math.round(y0 * canvas.height);
+      const sw = Math.max(1, Math.round((x1 - x0) * canvas.width)), sh = Math.max(1, Math.round((y1 - y0) * canvas.height));
+      const out = document.createElement('canvas');
+      out.width = sw; out.height = sh;
+      out.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+      canvas.width = 0; canvas.height = 0;
+      await ocrCanvasToPanel(out, 'זיהוי טקסט: אזור בעמוד ' + n);
+      out.width = 0; out.height = 0;
+    } catch (e) { ocrFailure(e); }
+  }
+  async function processAll(useOcr) {
+    if (!needDoc() || OCR.busy) return;
+    const pdf = V.pdf, total = V.numPages;
+    if (useOcr) {
+      if (total > 30) {
+        const r = await call('ui.showConfirm', { title: 'זיהוי טקסט לכל המסמך', content: 'במסמך ' + total.toLocaleString('he-IL') + ' עמודים, והזיהוי עשוי לקחת כמה דקות. להמשיך? אפשר לעצור בכל רגע.' }, 2);
+        if (r.success && r.data && r.data.confirmed === false) return;
+      }
+      if (!window.OcrEngine) { toast.err('מנוע הזיהוי לא נטען'); return; }
+      ocrApplySettings();
+    }
+    OCR.busy = true;
+    let cancelled = false;
+    prog.show('מכין…', () => { cancelled = true; });
+    if (useOcr) call('ui.setUnsavedChanges', { hasChanges: true, message: 'זיהוי הטקסט במסמך עדיין רץ' }, 1);
+    const parts = [];
+    const title = useOcr ? 'זיהוי טקסט: כל המסמך' : 'הטקסט המוטבע: כל המסמך';
+    const src = useOcr ? 'ocr' : 'embedded';
+    try {
+      for (let n = 1; n <= total; n++) {
+        if (cancelled || pdf !== V.pdf) break;
+        prog.update('עמוד ' + n + ' מתוך ' + total + '…', (n - 1) / total);
+        let text = '';
+        try { text = await embeddedPageText(n); } catch (e) { text = ''; }
+        if (useOcr && !text) {
+          const { canvas } = await renderToCanvas(pdf, n, ocrQuality() * 1.5, 24e6);
+          text = await window.OcrEngine.recognize(canvas, (p) => prog.update(null, (n - 1 + p) / total));
+          canvas.width = 0; canvas.height = 0;
+        }
+        parts.push('— עמוד ' + n + ' —\n' + (text || '(אין טקסט)'));
+        if (n % 3 === 0 || n === total) showText(parts.join('\n\n'), { title, sub: docName() + ' · ' + n + '/' + total, source: src });
+      }
+      showText(parts.join('\n\n'), { title, sub: docName(), source: src });
+      toast.msg(cancelled ? 'הופסק אחרי ' + parts.length + ' עמודים' : 'הושלם: ' + parts.length + ' עמודים');
+    } catch (e) { ocrFailure(e); } finally {
+      OCR.busy = false; prog.hide();
+      if (useOcr) call('ui.setUnsavedChanges', { hasChanges: false }, 1);
+    }
+  }
+  function startRegionOcr() {
+    if (!needDoc()) return;
+    setCrop(true, true);
+  }
+  function closeOcrMenu() { el['ocr-menu'].hidden = true; el['tb-ocr'].setAttribute('aria-expanded', 'false'); }
+  function toggleOcrMenu() {
+    if (!el['ocr-menu'].hidden) { closeOcrMenu(); return; }
+    if (!needDoc()) return;
+    const r = el['tb-ocr'].getBoundingClientRect();
+    const m = el['ocr-menu'];
+    m.hidden = false;
+    const w = m.offsetWidth;
+    m.style.top = (r.bottom + 4) + 'px';
+    m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+    el['tb-ocr'].setAttribute('aria-expanded', 'true');
+    const f = m.querySelector('button'); if (f) f.focus();
+  }
+  function runOcrAction(act) {
+    closeOcrMenu();
+    if (act === 'extract-page') extractPage();
+    else if (act === 'ocr-page') ocrPage();
+    else if (act === 'ocr-region') startRegionOcr();
+    else if (act === 'ocr-all') processAll(true);
+    else if (act === 'extract-all') processAll(false);
+  }
+  async function refreshBridgeStatus(manual) {
+    const box = $('win-ocr-status');
+    if (!window.OcrBridge) { box.textContent = 'לא זמין'; return; }
+    box.textContent = 'בודק…';
+    const st = await window.OcrBridge.checkOcr();
+    let msg;
+    if (!st.bridge) msg = 'הגשר לא פועל או לא נמצא. הורידו אותו והפעילו אותו (הוא רץ ברקע).';
+    else if (!st.available) msg = 'הגשר פועל, אבל גרסתו ישנה או שאין בו OCR. יש להוריד את הגרסה האחרונה.';
+    else if (!st.hebrew) msg = 'הגשר פועל, אבל חבילת השפה העברית ל-OCR לא מותקנת ב-Windows.';
+    else msg = 'מוכן: הגשר פועל וחבילת השפה העברית מותקנת.';
+    box.textContent = msg;
+    box.classList.toggle('ok', window.OcrBridge.ocrReady());
+    if (manual && window.OcrBridge.ocrReady() && S.settings.ocrEngine !== 'windows') toast.msg('אפשר לבחור עכשיו \u201eOCR של Windows\u201c במנוע הזיהוי');
+  }
+  function wireOcr() {
+    ocrApplySettings();
+    el['tb-ocr'].onclick = (e) => { e.stopPropagation(); toggleOcrMenu(); };
+    el['ocr-menu'].addEventListener('click', (e) => { const b = e.target.closest('[data-act]'); if (b) runOcrAction(b.getAttribute('data-act')); });
+    el['ocr-menu'].addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeOcrMenu(); el['tb-ocr'].focus(); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = Array.from(el['ocr-menu'].querySelectorAll('button')), i = items.indexOf(document.activeElement);
+        items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+      }
+    });
+    document.addEventListener('mousedown', (e) => { if (!el['ocr-menu'].hidden && !e.target.closest('#ocr-menu') && !e.target.closest('#tb-ocr')) closeOcrMenu(); });
+    el['op-cancel'].onclick = () => { if (prog.cancel) { prog.cancel(); el['op-label'].textContent = 'עוצר…'; } };
+    el['tp-close'].onclick = () => { el['text-panel'].hidden = true; el['tb-ocr'].classList.remove('active'); };
+    el['tp-output'].addEventListener('input', updateTextFooter);
+    el['text-panel'].querySelectorAll('[data-tact]').forEach((b) => b.addEventListener('click', () => {
+      const act = b.getAttribute('data-tact');
+      if (act === 'copy') copyOutText();
+      else if (act === 'save') saveOutText();
+      else if (act === 'edit') {
+        const on = el['tp-output'].getAttribute('contenteditable') !== 'true';
+        el['tp-output'].setAttribute('contenteditable', on ? 'true' : 'false');
+        b.classList.toggle('active', on);
+        if (on) { el['tp-output'].focus(); toast.msg('מצב עריכה: אפשר לתקן את הטקסט'); }
+      } else if (act === 'clear') { el['tp-output'].textContent = ''; el['tp-sub'].textContent = ''; updateTextFooter(); }
+    }));
+    $('btn-bridge-dl').onclick = async () => {
+      const r = await call('app.openUrl', { url: window.OcrBridge ? window.OcrBridge.DOWNLOAD_URL : '' }, 2);
+      if (!r.success) toast.err('לא ניתן לפתוח את הקישור. אפשר להעתיק אותו ידנית: ' + (window.OcrBridge ? window.OcrBridge.DOWNLOAD_URL : ''));
+    };
+    $('btn-bridge-check').onclick = () => refreshBridgeStatus(true);
+    $('btn-ocr-test').onclick = async () => {
+      if (!window.OcrEngine) { toast.err('מנוע הזיהוי לא נטען'); return; }
+      ocrApplySettings();
+      const b = $('btn-ocr-test'); b.disabled = true;
+      try {
+        const t = await window.OcrEngine.selfTest();
+        const engine = window.OcrEngine.usingWindows() ? 'OCR של Windows' : 'Tesseract';
+        toast[/שלום/.test(t) ? 'ok' : 'msg'](engine + ' החזיר: ' + (t || '(ריק)'));
+      } catch (e) { toast.err('בדיקת המנוע נכשלה: ' + ((e && e.message) || '')); }
+      b.disabled = false;
+    };
   }
 
   /* ═════════════════════ רוחב הספרייה (גרירה) ═════════════════════ */
@@ -2170,6 +2470,7 @@
     applyFsHide();
     applyLibWidth();
     applyHand();
+    ocrApplySettings();
 
     let folders = Array.isArray(foldersSaved) ? foldersSaved.filter((f) => f && f.token) : [];
     if (!folders.length && legacyFolder && legacyFolder.token) {          // מהגרסאות הקודמות: תיקייה אחת
