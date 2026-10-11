@@ -1752,11 +1752,12 @@
     showActiveTab();
     saveTabs();
   }
-  // אם המסמך כבר פתוח בלשונית — עוברים אליה; אחרת פותחים (בלשונית הנוכחית או בחדשה)
+  // אם המסמך כבר פתוח בלשונית — עוברים אליה; אחרת פותחים (בלשונית הנוכחית או בחדשה).
+  // לשונית ריקה (דף ראשי) נעשה בה שימוש במקום לפתוח עוד לשונית.
   function openOrSwitch(key, inNewTab) {
     const t = T.tabs.find((x) => x.path === key);
     if (t) { activateTab(t.id); return; }
-    if (inNewTab) addTab(key); else openDoc(key);
+    if (inNewTab && activeTab().path) addTab(key); else openDoc(key);
   }
   function addTab(path) {
     syncActiveTabPage();
@@ -1902,7 +1903,7 @@
         markKb();
       } else if (e.key === 'Enter') {
         const e0 = S.flatItems[Math.max(0, S.kbIndex)];
-        if (e0) { e.preventDefault(); openOrSwitch(e0.key); }
+        if (e0) { e.preventDefault(); openOrSwitch(e0.key, true); }
       } else if (e.key === 'Escape') {
         if (el.search.value) { el.search.value = ''; S.query = ''; renderLibrary(); }
       }
@@ -1913,7 +1914,8 @@
       const k = row.getAttribute('data-kind');
       if (k === 'file') {
         const p = row.getAttribute('data-path');
-        openOrSwitch(p, e.ctrlKey || e.metaKey);
+        // לחיצה רגילה: לשונית חדשה (או מעבר ללשונית שבה הספר כבר פתוח). Ctrl+לחיצה: בלשונית הנוכחית
+        openOrSwitch(p, !(e.ctrlKey || e.metaKey));
       } else if (k === 'dir') toggleDir(row.getAttribute('data-path'));
       else if (k === 'more') { S.limit += 300; renderLibrary(); }
     });

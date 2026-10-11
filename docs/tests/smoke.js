@@ -132,6 +132,27 @@ async function boot(initStore, idx) {
   await handlers['app.command']({ command: 'openCurrentPdf' });
   await wait(300);
   check('קיצור Ctrl+Alt+O פותח את ספר הקורא הנוכחי', () => { assert(store.libBooks.some((b) => b.key === 'b:U9')); });
+  // לחיצה על ספר ברשימת הספרייה: לשונית חדשה + מעבר אליה; Ctrl+לחיצה: בלשונית הנוכחית
+  {
+    const d = A.dom.window.document, W = A.dom.window;
+    const tabs = () => [...d.querySelectorAll('#tabs .tab')];
+    const rows = () => [...d.querySelectorAll('#lib-list [data-kind="file"]')];
+    const click = (row, extra) => row.dispatchEvent(new W.MouseEvent('click', Object.assign({ bubbles: true }, extra || {})));
+    const q = d.getElementById('search'); q.value = 'שולחן'; q.dispatchEvent(new W.Event('input', { bubbles: true })); await wait(300);
+    const before = tabs().length;
+    check('ספרייה: יש שורות קבצים לבדיקה', () => assert(rows().length >= 2, 'שורות: ' + rows().length));
+    const r = rows();
+    click(r[2]); await wait(300);
+    const afterA = tabs().length;
+    check('לחיצה על ספר ברשימה פותחת לשונית חדשה ועוברת אליה', () => {
+      assert.strictEqual(afterA, before + 1, 'לשוניות לפני ' + before + ' אחרי ' + afterA);
+      assert(tabs()[tabs().length - 1].classList.contains('active'), 'הלשונית החדשה לא פעילה');
+    });
+    click(r[2]); await wait(200);
+    check('לחיצה חוזרת על אותו ספר עוברת ללשונית הקיימת (בלי כפילות)', () => assert.strictEqual(tabs().length, afterA));
+    click(r[1], { ctrlKey: true }); await wait(300);
+    check('Ctrl+לחיצה פותחת בלשונית הנוכחית', () => assert.strictEqual(tabs().length, afterA));
+  }
   check('אין שגיאות JS לא צפויות (תרחיש א)', () => assert.deepStrictEqual(A.jsErrors, []));
 
   // תרחיש ב: מיגרציה מהצופה 3.2.0 (פורמט ישן של התיקיות, בלי אינדקס)
