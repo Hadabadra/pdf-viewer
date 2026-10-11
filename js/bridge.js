@@ -1,19 +1,20 @@
-/* צופה PDF+OCR — לקוח לגשר אוצריא (שירות Windows מקומי): OCR של Windows (Windows.Media.Ocr).
-   בלי הגשר, בלי חבילת השפה או בכל כשל — הצופה חוזר בשקט למנוע Tesseract המובנה. */
+/* ספריית PDF+OCR — לקוח לגשר אוצריא (שירות Windows מקומי): OCR של Windows (Windows.Media.Ocr).
+   בלי הגשר, בלי חבילת השפה או בכל כשל — חוזרים בשקט למנוע Tesseract המובנה. (הועבר מצופה PDF+OCR 3.2.0) */
 (function () {
   'use strict';
-  const PV = window.PV;
-
   const PORTS = [47917, 47918, 47919, 47920, 47921];
   const HOST = 'http://127.0.0.1:';
-  PV.BRIDGE_URL = 'https://github.com/e0548433917-gif/otzaria-system-tools/releases/latest';
+  const hasOtz = () => typeof window.Otzaria !== 'undefined' && window.Otzaria && typeof window.Otzaria.call === 'function';
 
-  const B = (PV.bridge = { port: null, info: null, ocr: null });
+  const B = (window.OcrBridge = {
+    port: null, info: null, ocr: null,
+    DOWNLOAD_URL: 'https://github.com/e0548433917-gif/otzaria-system-tools/releases/latest'
+  });
 
   function isIter(r) { return r && typeof r[Symbol.asyncIterator] === 'function'; }
 
   async function openStream(params) {
-    if (!PV.hasOtz()) throw new Error('unavailable');
+    if (!hasOtz()) throw new Error('unavailable');
     let r = window.Otzaria.call('network.fetchStream', params);
     if (isIter(r)) return r;
     r = await r;
@@ -28,7 +29,7 @@
       url: HOST + port + path,
       method: method || 'POST',
       headers: { 'X-Otzaria-Bridge': '1' },
-      timeoutMs: Math.min(Math.max(timeoutMs || 30000, 1000), 120000),
+      timeoutMs: Math.min(Math.max(timeoutMs || 30000, 1000), 120000)
     };
     if (p.method === 'POST') {
       p.headers['Content-Type'] = 'application/json; charset=utf-8';
@@ -53,7 +54,7 @@
   /** סריקת הפורטים ב-GET /health. מחזיר את מידע הגשר או null. */
   B.probe = async function () {
     B.port = null; B.info = null; B.ocr = null;
-    if (!PV.hasOtz()) return null;
+    if (!hasOtz()) return null;
     const found = await Promise.all(PORTS.map((port) =>
       request(port, '/health', null, 2500, 'GET')
         .then((d) => (d && d.name === 'otzaria-bridge' ? { port, info: d } : null))
