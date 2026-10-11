@@ -227,9 +227,8 @@ mark {
 
 .viewer-toolbar {
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.4em 0.5em;
-  padding: 0.35em 0.75em;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+  padding: 0 0.25em;
+  background: transparent;
   flex: 0 0 auto;
 }
 .tb-group { display: flex; align-items: center; gap: 0.15em; }
@@ -506,29 +505,30 @@ body.dark-mode.invert-pages .page canvas { filter: invert(1) hue-rotate(180deg);
 
 /* ═════════ לשוניות ═════════ */
 .tabbar {
-  display: flex; align-items: flex-end; gap: 4px;
-  padding: 6px 10px 0;
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 10px;
   background: var(--color-surface-container-high);
+  border-bottom: 1px solid var(--color-outline-variant);
   flex: 0 0 auto;
 }
 .tabs {
-  display: flex; align-items: flex-end; gap: 2px;
+  display: flex; align-items: center; gap: 2px;
   min-width: 0; overflow-x: auto; scrollbar-width: none;
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tabbar-grow { flex: 1; }
 .tab {
   display: flex; align-items: center; gap: 6px;
-  flex: 0 1 13em; min-width: 6.5em; max-width: 16em; height: 34px;
+  flex: 0 1 13em; min-width: 6.5em; max-width: 16em; height: 32px;
   padding-inline: 10px 4px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-radius: var(--radius-sm);
   color: var(--color-on-surface-variant);
   font-size: 0.88em; cursor: pointer; user-select: none;
   transition: background 0.15s, color 0.15s;
 }
 .tab > svg { width: 1.15em; height: 1.15em; }
 .tab:hover:not(.active) { background: var(--color-secondary-subtle); }
-.tab.active { background: var(--color-surface); color: var(--color-on-surface); font-weight: 600; }
+.tab.active { background: var(--color-surface); color: var(--color-on-surface); font-weight: 600; box-shadow: 0 1px 2px var(--shadow-soft); }
 .tab:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 .tab-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-close {
@@ -540,7 +540,7 @@ body.dark-mode.invert-pages .page canvas { filter: invert(1) hue-rotate(180deg);
 .tab-close svg { width: 14px; height: 14px; }
 .tab-close:hover { background: var(--color-secondary-subtle); opacity: 1; }
 .tab-add {
-  flex: 0 0 auto; width: 30px; height: 30px; margin-bottom: 2px;
+  flex: 0 0 auto; width: 30px; height: 30px;
   border: none; border-radius: var(--radius-sm);
   background: var(--clear); color: var(--color-on-surface-variant);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
@@ -590,7 +590,7 @@ body.is-fullscreen .library { display: none; }
 .recent-x:hover { background: var(--color-secondary-subtle); color: var(--color-on-surface); }
 .recent-empty { padding: 0.4em 0.3em; color: var(--color-on-surface-variant); font-size: 0.9em; }
 @media (hover: none) { .recent-x { opacity: 1; } }
-@media (max-width: 700px) { .tabbar { padding: 4px 6px 0; } .tab { flex-basis: 10em; } }
+@media (max-width: 700px) { .tabbar { padding: 4px 6px; } .tab { flex-basis: 10em; } }
 
 /* ═════════ חיתוך כתמונה ═════════ */
 .pages-scroll.cropping { cursor: crosshair; touch-action: none; user-select: none; }
@@ -652,11 +652,18 @@ body.is-fullscreen .library { display: none; }
 }
 
 /* סרגל צד והגדרות נמצאים בשורת הלשוניות */
-.tabbar { padding-top: 6px; }
+/* סרגל עליון אחד: לשוניות מימין, כלי המסמך משמאל; בחלון צר הכלים יורדים לשורה שנייה */
+.viewer-toolbar { flex-wrap: nowrap; }
+.viewer-toolbar .chip { white-space: nowrap; }
+@media (max-width: 1100px) {
+  .tabbar { flex-wrap: wrap; }
+  .tabbar .viewer-toolbar { order: 10; flex: 1 1 100%; flex-wrap: wrap; padding: 0; }
+}
 body.is-fullscreen #btn-library, body.is-fullscreen #btn-settings { display: none; }
 
 /* מסך מלא: בלי שורת הלשוניות */
-body.is-fullscreen.fs-no-tabs .tabbar { display: none; }
+body.is-fullscreen.fs-no-tabs .tabs, body.is-fullscreen.fs-no-tabs #tab-add { display: none; }
+body.is-fullscreen.fs-no-tabs.fs-no-toolbar .tabbar { display: none; }
 body.is-fullscreen.fs-no-toolbar .viewer-toolbar { display: none; }
 .fs-exit { display: none; }
 body.is-fullscreen.fs-float .fs-exit {

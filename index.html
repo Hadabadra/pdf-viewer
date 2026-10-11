@@ -16,6 +16,46 @@
     <div class="tabs" id="tabs" role="tablist" aria-label="לשוניות"></div>
     <button class="tab-add" id="tab-add" title="לשונית חדשה" aria-label="לשונית חדשה"><span data-icon="plus"></span></button>
     <span class="tabbar-grow"></span>
+  <div class="viewer-toolbar" id="viewer-toolbar" hidden>
+    <div class="tb-group">
+      <button class="tb-btn tb-text" id="btn-toc" title="תוכן עניינים" aria-label="תוכן עניינים" hidden>
+        <span data-icon="list"></span><span class="btn-label">תוכן</span>
+      </button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button class="tb-btn" id="tb-prev" title="עמוד קודם" aria-label="עמוד קודם"><span data-icon="chevron-up"></span></button>
+      <div class="page-box">
+        <input class="page-input" id="page-input" type="text" inputmode="numeric" aria-label="מספר עמוד" />
+        <span class="page-total" id="page-total"></span>
+      </div>
+      <button class="tb-btn" id="tb-next" title="עמוד הבא" aria-label="עמוד הבא"><span data-icon="chevron-down"></span></button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button class="tb-btn" id="tb-zoom-out" title="הקטנה (Ctrl ‎−‎)" aria-label="הקטנה"><span data-icon="zoom-out"></span></button>
+      <select class="zoom-select" id="zoom-select" aria-label="רמת זום"></select>
+      <button class="tb-btn" id="tb-zoom-in" title="הגדלה (Ctrl ‎+‎)" aria-label="הגדלה"><span data-icon="zoom-in"></span></button>
+      <button class="tb-btn" id="tb-fit-width" title="התאמה לרוחב" aria-label="התאמה לרוחב"><span data-icon="fit-width"></span></button>
+      <button class="tb-btn" id="tb-fit-page" title="התאמה לגובה" aria-label="התאמה לגובה"><span data-icon="fit-page"></span></button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button class="tb-btn" id="tb-find" title="חיפוש בתוך המסמך (Ctrl+F)" aria-label="חיפוש בתוך המסמך"><span data-icon="search"></span></button>
+      <button class="tb-btn" id="tb-hand" title="יד: גרירת המסמך (H)" aria-label="יד לגרירת המסמך"><span data-icon="hand"></span></button>
+      <button class="tb-btn tb-text" id="tb-ocr" title="חילוץ טקסט וזיהוי טקסט (OCR) (Ctrl+E)" aria-label="חילוץ טקסט" aria-haspopup="true"><span data-icon="scan"></span><span class="btn-label">טקסט</span></button>
+      <button class="tb-btn tb-text" id="tb-crop" title="חיתוך אזור מהעמוד כתמונה" aria-label="חיתוך אזור כתמונה"><span data-icon="crop"></span><span class="btn-label">חיתוך</span></button>
+      <button class="tb-btn" id="tb-print" title="הדפסה (Ctrl+P)" aria-label="הדפסה"><span data-icon="printer"></span></button>
+      <span class="chip" id="crop-hint" hidden>גררו על העמוד לבחירת אזור · Esc לביטול</span>
+      <span class="chip chip-warn" id="no-text-chip" hidden title="בעמוד הזה אין שכבת טקסט, ולכן אי אפשר לסמן ולהעתיק">אין שכבת טקסט</span>
+    </div>
+  </div>
     <button class="tab-add" id="btn-settings" title="הגדרות" aria-label="הגדרות"><span data-icon="settings"></span></button>
     <button class="tab-add" id="btn-fullscreen" title="מסך מלא" aria-label="מסך מלא"></button>
   </div>
@@ -42,47 +82,6 @@
 
     <!-- צופה -->
     <section class="viewer" id="viewer" aria-label="צופה">
-
-      <div class="viewer-toolbar" id="viewer-toolbar" hidden>
-        <div class="tb-group">
-          <button class="tb-btn tb-text" id="btn-toc" title="תוכן עניינים" aria-label="תוכן עניינים" hidden>
-            <span data-icon="list"></span><span class="btn-label">תוכן</span>
-          </button>
-        </div>
-
-        <div class="tb-sep"></div>
-
-        <div class="tb-group">
-          <button class="tb-btn" id="tb-prev" title="עמוד קודם" aria-label="עמוד קודם"><span data-icon="chevron-up"></span></button>
-          <div class="page-box">
-            <input class="page-input" id="page-input" type="text" inputmode="numeric" aria-label="מספר עמוד" />
-            <span class="page-total" id="page-total"></span>
-          </div>
-          <button class="tb-btn" id="tb-next" title="עמוד הבא" aria-label="עמוד הבא"><span data-icon="chevron-down"></span></button>
-        </div>
-
-        <div class="tb-sep"></div>
-
-        <div class="tb-group">
-          <button class="tb-btn" id="tb-zoom-out" title="הקטנה (Ctrl ‎−‎)" aria-label="הקטנה"><span data-icon="zoom-out"></span></button>
-          <select class="zoom-select" id="zoom-select" aria-label="רמת זום"></select>
-          <button class="tb-btn" id="tb-zoom-in" title="הגדלה (Ctrl ‎+‎)" aria-label="הגדלה"><span data-icon="zoom-in"></span></button>
-          <button class="tb-btn" id="tb-fit-width" title="התאמה לרוחב" aria-label="התאמה לרוחב"><span data-icon="fit-width"></span></button>
-          <button class="tb-btn" id="tb-fit-page" title="התאמה לגובה" aria-label="התאמה לגובה"><span data-icon="fit-page"></span></button>
-        </div>
-
-        <div class="tb-sep"></div>
-
-        <div class="tb-group">
-          <button class="tb-btn" id="tb-find" title="חיפוש בתוך המסמך (Ctrl+F)" aria-label="חיפוש בתוך המסמך"><span data-icon="search"></span></button>
-          <button class="tb-btn" id="tb-hand" title="יד: גרירת המסמך (H)" aria-label="יד לגרירת המסמך"><span data-icon="hand"></span></button>
-          <button class="tb-btn tb-text" id="tb-ocr" title="חילוץ טקסט וזיהוי טקסט (OCR) (Ctrl+E)" aria-label="חילוץ טקסט" aria-haspopup="true"><span data-icon="scan"></span><span class="btn-label">טקסט</span></button>
-          <button class="tb-btn tb-text" id="tb-crop" title="חיתוך אזור מהעמוד כתמונה" aria-label="חיתוך אזור כתמונה"><span data-icon="crop"></span><span class="btn-label">חיתוך</span></button>
-          <button class="tb-btn" id="tb-print" title="הדפסה (Ctrl+P)" aria-label="הדפסה"><span data-icon="printer"></span></button>
-          <span class="chip" id="crop-hint" hidden>גררו על העמוד לבחירת אזור · Esc לביטול</span>
-          <span class="chip chip-warn" id="no-text-chip" hidden title="בעמוד הזה אין שכבת טקסט, ולכן אי אפשר לסמן ולהעתיק">אין שכבת טקסט</span>
-        </div>
-      </div>
 
       <div class="findbar" id="findbar" hidden>
         <div class="find-field">
