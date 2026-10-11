@@ -5,3 +5,7 @@
 * התוצאה נרשמת כרשומת extra עם `lib = {kind:'token', token}` ומפתח `t:<token>` ונפתחת דרך `openExtra`. אינה נשמרת בין הפעלות (persist=false).
 * כפתורים: מסך הפתיחה, הדף הראשי, הגדרות ← תיקיות; קיצור Ctrl+O.
 * שרשרת פתיחה: `openDoc` ← `resolveSource` ← `fs.resolveFileUrl` לטוקן.
+
+## מזהה ועיצוב (4.0.1)
+* מזהה התוסף: com.chadbedera.pdfocrlibrary (נפרד מהצופה com.chadbedera.pdfviewer 3.2.0, שיש בו גרירה/הדבקה/תמונות/DOCX/EPUB/הדפסה).
+* חנות אוצריא דוחה תגית „מראה תואם“ אם ב-css יש hex/rgba/font-family/border-radius בפיקסלים מחוץ ל-:root. להשתמש ב-var(--color-*), var(--font-ui), var(--radius-*).

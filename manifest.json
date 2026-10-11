@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "com.chadbedera.pdfviewer",
+  "id": "com.chadbedera.pdfocrlibrary",
   "name": "ספריית PDF+OCR",
   "version": "4.0.1",
   "description": "קורא קבצים מתיקיות עם לשוניות, זום וחיפוש במסמך. כולל חילוץ טקסט, OCR בעברית וחיפוש בספריית אוצריא.",

@@ -21,7 +21,7 @@ check('manifest: שם, מחבר וגרסה', () => {
   assert.strictEqual(manifest.name, 'ספריית PDF+OCR');
   assert.strictEqual(manifest.author, 'חד בדרא ומעמע');
   assert.strictEqual(manifest.version, '4.0.0');
-  assert.strictEqual(manifest.id, 'com.chadbedera.pdfviewer');
+  assert.strictEqual(manifest.id, 'com.chadbedera.pdfocrlibrary');
 });
 check('manifest: הרשאות לכל התרומות', () => {
   const need = ['reader.context_menu', 'reader.toolbar', 'reader.open', 'library.content.read', 'library.books.provide', 'app.startup_contributions', 'app.shortcuts', 'network.localhost', 'fs.user_files.read', 'fs.user_files.write'];
