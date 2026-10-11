@@ -85,7 +85,7 @@
       "shortcuts": [
         {
           "id": "chadbedera-open-current-pdf",
-          "label": "פתיחת ספר ה-PDF הנוכחי בספריית PDF+OCR",
+          "label": "פתיחת הספר הנוכחי בספריית PDF+OCR",
           "key": "ctrl+alt+o",
           "command": "openCurrentPdf"
         }

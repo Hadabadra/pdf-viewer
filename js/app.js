@@ -2649,7 +2649,7 @@
       const t = tabs[tabs.length - 1];
       if (t) target = { currentId: t.id, currentBookId: t.bookId, currentIndex: t.index, currentBook: t.book, currentType: 'pdf' };
     }
-    if (!target) { toast.msg('אין ספר PDF פתוח בקורא'); return; }
+    if (!target) { toast.msg('אין בקורא ספר פתוח שאפשר לפתוח כאן'); return; }
     openBookFromReader(target);
   }
   function safe(fn) { return (d) => { Promise.resolve().then(() => fn(d)).catch((e) => toast.err('הפעולה נכשלה: ' + (e && e.message || e))); }; }
@@ -2684,7 +2684,12 @@
     applyHand();
     ocrApplySettings();
 
-    let folders = Array.isArray(foldersSaved) ? foldersSaved.filter((f) => f && f.token) : [];
+    // מיגרציה מהצופה 3.2.0 (אותו מזהה תוסף ואותו אחסון): { folderToken, name, path } -> { id, token, name, path }
+    let migrated = false;
+    let folders = Array.isArray(foldersSaved)
+      ? foldersSaved.map((f, i) => (f && !f.token && f.folderToken ? (migrated = true, { id: 'o' + i, token: f.folderToken, name: f.name || 'תיקייה', path: f.path || '' }) : f)).filter((f) => f && f.token)
+      : [];
+    if (migrated && folders.length) store.set('folders', folders);
     if (!folders.length && legacyFolder && legacyFolder.token) {          // מהגרסאות הקודמות: תיקייה אחת
       folders = [Object.assign({}, legacyFolder, { id: '' })];
       store.set('folders', folders);
