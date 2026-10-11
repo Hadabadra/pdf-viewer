@@ -92,7 +92,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+          if [[ "$GITHUB_REF" != "refs/heads/main" && "$GITHUB_REF" != "refs/heads/viewer-3.3.3" ]]; then
             echo "ענף בדיקה ($GITHUB_REF) - בלי Release"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           elif gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
