@@ -117,6 +117,7 @@
     sidebar: true,
     ocrQuality: 2,
     ocrLines: true,
+    ocrCols: false,
     ocrEngine: 'tesseract', // 'tesseract' | 'windows' (דרך גשר אוצריא)
   };
   PV.loadSettings = async function () {

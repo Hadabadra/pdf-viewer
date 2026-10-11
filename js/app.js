@@ -511,6 +511,7 @@
     bindSetting('set-ocr-quality', 'ocrQuality', Number);
     bindSetting('set-ocr-lines', 'ocrLines');
     bindSetting('set-ocr-engine', 'ocrEngine');
+    bindSetting('set-ocr-cols', 'ocrCols');
     refreshWinOcr();
     bindStoreSwitch('set-library', 'showInLibrary', (on) => { if (on) Fs.syncLibrary({ verbose: true }); else $('library-sync-status').textContent = PV.t('הקבצים הוסתרו מחיפוש הספרייה'); });
     bindStoreSwitch('set-tb-open', 'tbOpen');
@@ -558,4 +559,45 @@
     boot({});
   }
   updateNav();
+})();
+
+/* ── 3.5.0: Ctrl+E / Ctrl+R בשלב הלכידה, וידיות לשינוי רוחב החלוניות ── */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const t = e.target, inField = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+    const k = (e.key || '').toLowerCase();
+    if (inField || (k !== 'e' && k !== 'r') || !window.PV) return;
+    if (!PV.viewer || !PV.viewer.isPaged || !PV.viewer.isPaged()) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (k === 'e') PV.ocr.extractPage(); else PV.ocr.startRegion();
+  }, true);
+
+  function save(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* */ } }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function mk(panelId, cssVar, isStart) {
+    const panel = $(panelId); if (!panel) return;
+    const key = 'pv-w-' + cssVar;
+    const saved = parseInt(load(key), 10);
+    if (saved > 0) document.documentElement.style.setProperty(cssVar, saved + 'px');
+    const h = document.createElement('div');
+    h.className = 'panel-resizer'; h.setAttribute('role', 'separator'); h.title = 'גרירה לשינוי הרוחב · לחיצה כפולה לאיפוס';
+    panel.appendChild(h);
+    h.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); save(key, 0); });
+    h.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault(); h.setPointerCapture(ev.pointerId);
+      const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+      const move = (m) => {
+        const r = panel.getBoundingClientRect();
+        const w = (isStart === rtl) ? r.right - m.clientX : m.clientX - r.left;
+        const v = Math.round(Math.max(160, Math.min(w, window.innerWidth * 0.6)));
+        document.documentElement.style.setProperty(cssVar, v + 'px'); save(key, v);
+      };
+      const up = () => { h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); };
+      h.addEventListener('pointermove', move); h.addEventListener('pointerup', up);
+    });
+  }
+  mk('sidebar', '--sidebar-width', true);
+  mk('textpanel', '--panel-width', false);
 })();

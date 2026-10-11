@@ -56,9 +56,9 @@
         <button class="icon-btn" id="btn-ocr-menu" title="חילוץ טקסט ו-OCR"><i data-icon="scan_text"></i></button>
         <div class="popover" id="ocr-menu">
           <div class="menu-label">חילוץ טקסט</div>
-          <button class="menu-item" data-act="extract-page"><i data-icon="document_text"></i><span class="mi-text">חלץ טקסט מהעמוד</span><span class="mi-kbd" data-t-skip>Ctrl+E</span></button>
-          <button class="menu-item" data-act="ocr-page"><i data-icon="scan_text"></i><span class="mi-text">OCR לעמוד הנוכחי</span></button>
-          <button class="menu-item" data-act="ocr-region"><i data-icon="crop"></i><span class="mi-text">OCR לאזור מסומן</span><span class="mi-kbd" data-t-skip>Ctrl+R</span></button>
+          <button class="menu-item" data-act="ocr-region"><i data-icon="crop"></i><span class="mi-text">זיהוי טקסט (OCR) לאזור מסומן</span><span class="mi-kbd" data-t-skip>Ctrl+R</span></button>
+          <button class="menu-item" data-act="ocr-page"><i data-icon="scan_text"></i><span class="mi-text">זיהוי טקסט (OCR) לעמוד הנוכחי</span></button>
+          <button class="menu-item" data-act="extract-page"><i data-icon="document_text"></i><span class="mi-text">חלץ טקסט מוטבע מהעמוד</span><span class="mi-kbd" data-t-skip>Ctrl+E</span></button>
           <button class="menu-item" data-act="ocr-all"><i data-icon="text_bullet_list_square"></i><span class="mi-text">OCR לכל המסמך</span></button>
           <button class="menu-item" data-act="extract-all"><i data-icon="document"></i><span class="mi-text">כל הטקסט המוטבע במסמך</span></button>
           <div class="menu-sep"></div>
@@ -217,6 +217,8 @@
       <div class="card">
         <h3><i data-icon="scan_text"></i>מנוע ה-OCR</h3>
         <p class="muted">Tesseract.js מובנה בתוסף, כולל עברית — עובד בלי אינטרנט. לזיהוי טוב יותר, המסמך מעובד ברזולוציה גבוהה מזו שעל המסך.</p>
+        <div class="setting-row"><div class="sr-text"><b>מסמך בשני טורים</b><span>מזהה כל טור בנפרד (ימין ואז שמאל), כדי שהטורים לא יתערבבו</span></div>
+          <label class="switch"><input type="checkbox" id="set-ocr-cols"><span class="track"></span></label></div>
         <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע הזיהוי</b><span>Tesseract המובנה, או OCR של Windows דרך גשר אוצריא</span></div>
           <select class="select" id="set-ocr-engine">
             <option value="tesseract">Tesseract (מובנה)</option>

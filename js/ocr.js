@@ -84,7 +84,21 @@
   }
 
   /** OCR על קנבס/תמונה. onProgress(0..1) אופציונלי. */
+  // מסמך בשני טורים: כל טור לבד (ימין ואז שמאל)
   O.recognize = async function (source, onProgress) {
+    if (PV.settings.ocrCols && source instanceof HTMLCanvasElement && source.width > 200) {
+      const W = source.width, H = source.height, half = Math.floor(W / 2), parts = [];
+      for (const [x, w] of [[half, W - half], [0, half]]) {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = H;
+        c.getContext('2d').drawImage(source, x, 0, w, H, 0, 0, w, H);
+        parts.push(await O.recognizeOne(c, onProgress ? (p) => onProgress(p / 2 + (parts.length ? 0.5 : 0)) : null));
+      }
+      return parts.filter(Boolean).join('\n\n');
+    }
+    return O.recognizeOne(source, onProgress);
+  };
+  O.recognizeOne = async function (source, onProgress) {
     if (PV.settings.ocrEngine === 'windows' && PV.bridge.ocrReady() && source instanceof HTMLCanvasElement) {
       try {
         const t = await PV.bridge.recognizeCanvas(source);
