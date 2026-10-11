@@ -2547,11 +2547,13 @@
     try {
       const on = S.settings.showInLibrary !== false;
       const map = (await store.get('libmap2')) || { next: 1, items: {} };
-      const items = {}, books = [], fname = {};
-      S.folders.forEach((f) => { fname[f.token] = f.name; });
+      const items = {}, books = [], fname = {}, fpath = {}, seen = new Set();
+      S.folders.forEach((f) => { fname[f.token] = f.name; fpath[f.token] = f.path ? String(f.path).replace(/\\/g, '/').replace(/\/+$/, '') : ''; });
       if (on) {
         for (const e of S.entries) {
           if (books.length >= 20000) break;
+          // תיקיות מקוננות או חופפות: אותו קובץ פיזי לא נרשם פעמיים בחיפוש הספרייה
+          if (fpath[e.ft]) { const abs = (fpath[e.ft] + '/' + e.path).toLowerCase(); if (seen.has(abs)) continue; seen.add(abs); }
           let id = map.items && map.items[e.key];
           if (!id) id = map.next++;
           items[e.key] = id;
