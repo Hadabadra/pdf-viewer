@@ -33,11 +33,11 @@ check('manifest: מפתחות when.storage תואמים למתגי ההגדרו�
   assert.deepStrictEqual(keys, ['showInLibrary', 'tbExtract', 'tbOpen']);
   ['set-showlib', 'set-tbopen', 'set-tbextract'].forEach((id) => assert(html.includes('id="' + id + '"'), id));
 });
-check('סרגל עליון אחד: כלי המסמך בתוך שורת הלשוניות', () => {
+check('סרגל כלי הקורא נפרד משורת הלשוניות', () => {
   const dom = new JSDOM(html);
   const bar = dom.window.document.getElementById('viewer-toolbar');
-  assert(bar && bar.closest('#tabbar'), 'viewer-toolbar לא בתוך tabbar');
-  assert(!dom.window.document.querySelector('#viewer #viewer-toolbar'), 'נשאר סרגל כלים בתוך הצופה');
+  assert(bar && !bar.closest('#tabbar'), 'viewer-toolbar בתוך tabbar');
+  assert(dom.window.document.querySelector('#viewer #viewer-toolbar'), 'סרגל הכלים לא בתוך הצופה');
 });
 check('ממשק: אין את המילה PDF מחוץ לשם התוסף', () => {
   const dom = new JSDOM(html);
