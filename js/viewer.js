@@ -63,7 +63,8 @@
     const opts = meta || {};
     let pdf = null;
     if (kind === 'pdf') {
-      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
+      // גופני ה-PDF הסטנדרטיים (Foxit/Liberation) — בלעדיהם גופנים לא מוטבעים מוצגים משובשים (עברית ודפוס ישן)
+      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, standardFontDataUrl: new URL('vendor/standard_fonts/', document.baseURI).href }).promise;
     }
     V.close();
     const gen = V.gen;

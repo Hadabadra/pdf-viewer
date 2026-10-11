@@ -3,7 +3,7 @@
   'use strict';
 
   const PV = (window.PV = window.PV || {});
-  PV.version = '3.1.0';
+  PV.version = '3.2.0';
   const $ = (PV.$ = (id) => document.getElementById(id));
 
   // ── אייקונים ──────────────────────────────────────────────────────────
