@@ -1,5 +1,9 @@
 # CHANGELOG — צופה PDF+OCR
 
+## 3.5.1
+
+* חלונית „מה חדש“ בתוך התוסף (אודות) עודכנה: כל התיקונים מ-3.2.0 עד 3.5.1, עם קישורים לפוסטים בפורום: https://otzaria.org/forum/post/43255 ו-https://otzaria.org/forum/post/43381.
+
 ## 3.5.0
 
 **המשך תיקוני הפורום (https://otzaria.org/forum/post/43381).**

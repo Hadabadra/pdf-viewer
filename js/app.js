@@ -601,3 +601,11 @@
   mk('sidebar', '--sidebar-width', true);
   mk('textpanel', '--panel-width', false);
 })();
+
+/* קישורי „מה חדש“ נפתחים בדפדפן */
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[data-url]'); if (!a) return;
+  e.preventDefault();
+  const url = a.getAttribute('data-url');
+  if (PV.hasOtz()) PV.call('app.openUrl', { url }).catch(() => PV.toast(url, { long: true })); else window.open(url, '_blank');
+});
