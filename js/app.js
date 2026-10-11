@@ -110,6 +110,7 @@
     if (/not_found/.test(code)) return 'הפריט לא נמצא — ייתכן שהוזז או נמחק.';
     if (/forbidden/.test(code)) return 'הגישה לנתיב נחסמה.';
     if (/unknown_method/.test(code)) return 'גרסת אוצריא ישנה מדי עבור התוסף (נדרשת 0.9.98 ומעלה).';
+    if (/unsupported/.test(code)) return 'לספר הזה אין קובץ מקומי (ספר טקסט מהמאגר). אפשר לחלץ ממנו טקסט בכפתור "חלץ טקסט" בקורא.';
     return msg || 'אירעה שגיאה';
   }
 
@@ -156,7 +157,7 @@
   }
 
   /* ═════════════════════ מצב ═════════════════════ */
-  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false, ocrEngine: 'tesseract', ocrQuality: '2', ocrLines: true };
+  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false, ocrEngine: 'tesseract', ocrQuality: '2', ocrLines: true, showInLibrary: true, tbOpen: true, tbExtract: true };
   const S = {
     settings: Object.assign({}, DEFAULT_SETTINGS),
     folders: [],             // [{ id, token, name, path, scannedAt, count }]
@@ -205,7 +206,9 @@
     out.sort((a, b) => collator.compare(a.tp, b.tp));
     S.entries = out;
     S.byPath = new Map(out.map((e) => [e.key, e]));
+    restoreExtra();
     S.tree = buildTree(out);
+    scheduleProviderSync();
   }
   function folderLabel() {
     return S.folders.length === 1 ? S.folders[0].name : S.folders.length.toLocaleString('he-IL') + ' תיקיות';
@@ -594,7 +597,7 @@
     if (targets.length) await startScan(targets, { isNew: false });
   }
   async function resetFolderState() {
-    S.folders = []; S.files = {}; S.entries = []; S.byPath = new Map(); S.tree = null; S.expanded.clear(); S.query = ''; S.folderIssue = '';
+    S.folders = []; S.files = {}; S.entries = []; S.byPath = new Map(); restoreExtra(); S.tree = null; S.expanded.clear(); S.query = ''; S.folderIssue = ''; scheduleProviderSync();
     el.search.value = '';
     resetTabs();
     renderLibrary();
@@ -738,7 +741,7 @@
   async function openDoc(path, opts) {
     opts = opts || {};
     const entry = S.byPath.get(path);
-    if (!entry || !S.folders.length) return;
+    if (!entry || (!entry.lib && !S.folders.length)) return;
     if (!setupPdfJs()) { toast.err('רכיב התצוגה לא נטען'); return; }
     if (V.path === path && V.pdf && !opts.force) { setNarrowView('viewer'); goToPage(opts.page || V.current); return; }
     const tab = activeTab();
@@ -756,16 +759,16 @@
     el['viewer-body'].hidden = false;
     docStatus('<div class="spinner"></div><div>פותח את המסמך…</div>');
 
-    const r = await call('fs.openFolderFile', { folderToken: entry.ft, path: entry.path });
-    if (seq !== V.seq) { if (r.success) call('fs.revokeFile', { token: r.data.token }); return; }
+    const r = await resolveSource(entry);
+    if (seq !== V.seq) { if (r.success && !entry.lib) call('fs.revokeFile', { token: r.data.token }); return; }
     if (!r.success) {
       docStatus('<div class="stage-icon" data-icon="alert"></div><div>' + esc(errText(r)) + '</div>' +
-        '<button class="btn-secondary" id="ds-rescan"><span data-icon="refresh"></span>סריקה מחדש של התיקייה</button>', 'error');
-      $('ds-rescan').onclick = () => rescan();
+        (entry.lib ? '' : '<button class="btn-secondary" id="ds-rescan"><span data-icon="refresh"></span>סריקה מחדש של התיקייה</button>'), 'error');
+      if (entry.lib) dropExtra(path); else $('ds-rescan').onclick = () => rescan();
       V.path = null; S.current = null;
       return;
     }
-    V.token = r.data.token;
+    V.token = entry.lib ? null : r.data.token;
     const url = r.data.url;
 
     await ensureWorkerBlob();
@@ -1723,7 +1726,7 @@
     });
   }, 400);
   function renderTabs() {
-    const has = S.folders.length > 0;
+    const has = S.folders.length > 0 || T.tabs.some((t) => t.path);
     el.tabs.hidden = !has; el['tab-add'].hidden = !has;
     el.tabs.innerHTML = T.tabs.map((t) => {
       const e = t.path && S.byPath.get(t.path);
@@ -1877,6 +1880,9 @@
     setToggle('set-ocr-lines', S.settings.ocrLines, (v) => { S.settings.ocrLines = v; saveSettings(); ocrApplySettings(); });
     setToggle('set-fshidetb', S.settings.fsHideToolbar, (v) => { S.settings.fsHideToolbar = v; saveSettings(); applyFsHide(); });
     setToggle('set-fshidetabs', S.settings.fsHideTabs, (v) => { S.settings.fsHideTabs = v; saveSettings(); applyFsHide(); });
+    setToggle('set-showlib', S.settings.showInLibrary !== false, (v) => { S.settings.showInLibrary = v; saveSettings(); store.set('showInLibrary', v); syncProvider(true); });
+    setToggle('set-tbopen', S.settings.tbOpen !== false, (v) => { S.settings.tbOpen = v; saveSettings(); store.set('tbOpen', v); });
+    setToggle('set-tbextract', S.settings.tbExtract !== false, (v) => { S.settings.tbExtract = v; saveSettings(); store.set('tbExtract', v); });
     setToggle('set-invert', S.settings.invert, (v) => { S.settings.invert = v; saveSettings(); document.body.classList.toggle('invert-pages', v); });
     $('about-version').textContent = 'גרסה ' + PLUGIN_VERSION;
   }
@@ -2449,18 +2455,222 @@
   }
 
   /* ═════════════════════ אתחול ═════════════════════ */
+  /* ═════════════════════ שילוב עם ספריית אוצריא (שלב 7.4) ═════════════════════ */
+  // רשומות שאינן מתיקיות המשתמש: ספרי ספרייה (נשמרות), וקבצים שנשלחו מתוספים אחרים (זמניות).
+  const PROVIDER = 'pdfocr';
+  const TB_EXTRACT = 'chadbedera-extract-text-toolbar';
+  const TB_OPEN = 'chadbedera-open-book-file';
+  const CM_EXTRACT = 'chadbedera-extract-text';
+  const EXTRA_MAX = 60;
+  S.extra = new Map();
+  let readyRes = null;
+  const ready = new Promise((r) => { readyRes = r; });
+
+  function restoreExtra() { S.extra.forEach((e, k) => S.byPath.set(k, e)); }
+  function saveExtra() {
+    const list = Array.from(S.extra.values()).filter((e) => e.persist).map((e) => ({ key: e.key, name: e.disp, lib: e.lib }));
+    return store.set('libBooks', list);
+  }
+  function registerExtra(key, lib, name, persist) {
+    const disp = String(name || 'מסמך').replace(/\.pdf$/i, '');
+    const e = { key, path: key, ft: null, lib, persist: !!persist, tp: disp, name: disp, dir: '', disp, size: 0, mtime: null, nk: normalize(disp), dk: '' };
+    S.extra.delete(key);
+    S.extra.set(key, e);
+    S.byPath.set(key, e);
+    if (persist) {
+      const open = new Set(T.tabs.map((t) => t.path));
+      for (const k of Array.from(S.extra.keys())) {
+        if (Array.from(S.extra.values()).filter((x) => x.persist).length <= EXTRA_MAX) break;
+        const x = S.extra.get(k);
+        if (x.persist && k !== key && !open.has(k) && S.pinned.indexOf(k) < 0) { S.extra.delete(k); S.byPath.delete(k); }
+      }
+      saveExtra();
+    }
+    return e;
+  }
+  function dropExtra(key) {
+    const e = S.extra.get(key);
+    S.extra.delete(key); S.byPath.delete(key);
+    S.recentFiles = S.recentFiles.filter((k) => k !== key); store.set('recentFiles', S.recentFiles);
+    if (e && e.persist) saveExtra();
+  }
+  async function loadExtra() {
+    const list = await store.get('libBooks');
+    if (!Array.isArray(list)) return;
+    for (const b of list) {
+      if (!b || typeof b.key !== 'string' || !b.lib || b.lib.kind !== 'book') continue;
+      registerExtra(b.key, b.lib, b.name, false);
+      S.extra.get(b.key).persist = true;
+    }
+  }
+  async function resolveSource(entry) {
+    const L = entry.lib;
+    if (!L) return call('fs.openFolderFile', { folderToken: entry.ft, path: entry.path });
+    if (L.kind === 'book') {
+      const q = L.bookUid ? { bookUid: L.bookUid } : L.id != null ? { id: L.id, type: L.type || 'pdf' } : { bookId: L.bookId, type: L.type || 'pdf' };
+      const r = await call('library.openBookFile', q);
+      if (r.success && !(r.data && r.data.url)) return { success: false, error: { code: 'error.not_found', message: 'לספר אין קובץ' } };
+      return r;
+    }
+    if (L.kind === 'token') return call('fs.resolveFileUrl', { token: L.token });
+    return { success: true, data: { url: L.url } };
+  }
+  // פותח רשומה בלשונית הקיימת, או בלשונית חדשה אם בנוכחית כבר יש מסמך אחר
+  async function openExtra(e, page) {
+    const opts = { page: page || undefined, norecord: !e.persist };
+    const t = T.tabs.find((x) => x.path === e.key);
+    if (t && t.id !== T.active) { if (page) t.page = page; activateTab(t.id); return; }
+    if (t) { await openDoc(e.key, opts); return; }
+    const cur = activeTab();
+    if (cur.path && cur.path !== e.key) {
+      syncActiveTabPage();
+      const nt = newTabObj(); T.tabs.push(nt); T.active = nt.id;
+      renderTabs();
+      await openDoc(e.key, Object.assign({ force: true }, opts));
+      saveTabs();
+      return;
+    }
+    await openDoc(e.key, opts);
+  }
+  /** q: { bookUid?, id?, bookId?, type?, name? } */
+  async function openLibraryBook(q, page) {
+    const key = 'b:' + (q.bookUid || (q.id != null ? 'i' + q.id : q.bookId));
+    const lib = { kind: 'book', bookUid: q.bookUid || null, id: q.id != null ? q.id : null, bookId: q.bookId || null, type: q.type || 'pdf' };
+    await openExtra(registerExtra(key, lib, q.name || 'ספר', true), page);
+  }
+
+  // ── ספק ספרים: קבצי התיקיות מופיעים בחיפוש הספרייה של אוצריא ──
+  let provSig = null, provBusy = false, provAgain = false;
+  async function syncProvider(force) {
+    if (provBusy) { provAgain = true; return; }
+    provBusy = true;
+    try {
+      const on = S.settings.showInLibrary !== false;
+      const map = (await store.get('libmap2')) || { next: 1, items: {} };
+      const items = {}, books = [], fname = {};
+      S.folders.forEach((f) => { fname[f.token] = f.name; });
+      if (on) {
+        for (const e of S.entries) {
+          if (books.length >= 20000) break;
+          let id = map.items && map.items[e.key];
+          if (!id) id = map.next++;
+          items[e.key] = id;
+          const parts = e.path.split('/'); parts.pop();
+          books.push({ id, title: e.disp.slice(0, 300), categoryPath: ('/' + [fname[e.ft] || ''].concat(parts).filter(Boolean).join('/')).slice(0, 300) });
+        }
+      }
+      let h = 5381;
+      for (const b of books) { const str = b.id + '|' + b.title + '|' + b.categoryPath; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; }
+      const sig = books.length + ':' + h;
+      if (force || sig !== provSig) {
+        await store.set('libmap2', { next: map.next, items });
+        const r = await call('library.setProviderBooks', { provider: PROVIDER, books });
+        if (r.success) provSig = sig;
+      }
+    } catch (e) { /* הסנכרון לספרייה אינו קריטי */ }
+    finally {
+      provBusy = false;
+      if (provAgain) { provAgain = false; scheduleProviderSync(); }
+    }
+  }
+  const scheduleProviderSync = debounce(() => { syncProvider(false); }, 1500);
+  async function onProviderOpen(ev) {
+    if (!ev || ev.provider !== PROVIDER) return;
+    await ready;
+    const map = await store.get('libmap2');
+    const key = map && map.items ? Object.keys(map.items).find((k) => map.items[k] === ev.id) : null;
+    if (!key || !S.byPath.has(key)) { toast.err('הקובץ \u201e' + (ev.title || '') + '\u201c לא נמצא. נסו סריקה מחדש של התיקיות'); return; }
+    openOrSwitch(key, !!activeTab().path);
+  }
+
+  // ── תרומות הקורא של אוצריא: פתיחת ספר בעמוד הנוכחי, חלץ טקסט, קיצור מקשים ──
+  async function openBookFromReader(data) {
+    await ready;
+    const page = Number(data.currentIndex) > 0 ? Number(data.currentIndex) : 1;
+    const q = data.currentBookUid ? { bookUid: data.currentBookUid } : data.currentId != null ? { id: data.currentId } : { bookId: data.currentBookId };
+    q.type = data.currentType || 'pdf';
+    q.name = data.currentBook;
+    await openLibraryBook(q, q.type === 'pdf' ? page : undefined);
+    return page;
+  }
+  // טקסט שאוצריא אינדקסה; ואם אין (PDF סרוק) — הקובץ נפתח בעמוד הנוכחי לחילוץ או OCR
+  async function extractFromReader(data) {
+    await ready;
+    const label = [data.currentBook, data.currentRef].filter(Boolean).join(' · ');
+    let text = (data.selectedText || '').trim();
+    if (!text && data.currentType !== 'pdf') {
+      const r = await call('library.getBookContent', { bookId: data.currentBookId, section: data.currentRef || '', limit: 5000 });
+      text = r.success && typeof r.data === 'string' ? r.data : '';
+    }
+    if (text) {
+      showText(text, { title: 'טקסט מהספרייה', sub: label, source: 'library' });
+      let copied = false;
+      try { await navigator.clipboard.writeText(text); copied = true; } catch (e) { /* אין גישה ללוח */ }
+      toast.ok(copied ? 'הטקסט חולץ והועתק ללוח (' + label + ')' : 'הטקסט חולץ');
+      return;
+    }
+    if (data.context === 'reader-pdf' || data.currentType === 'pdf') {
+      const page = await openBookFromReader(data);
+      if (V.pdf) await extractPage(page);
+      return;
+    }
+    toast.err('לא נמצא טקסט לחילוץ במיקום הזה');
+  }
+  function onToolbar(data) {
+    if (!data) return;
+    if (data.itemId === TB_OPEN) openBookFromReader(data);
+    else if (data.itemId === TB_EXTRACT) extractFromReader(data);
+  }
+  function onContextMenu(data) { if (data && data.itemId === CM_EXTRACT) extractFromReader(data); }
+  // קובץ שנשלח מתוסף אחר (למשל סייר הקבצים): { name, url | dataUrl | token, page } או ספר ספרייה
+  async function onPageOpened(data) {
+    const p = data && data.param;
+    if (!p || typeof p !== 'object') return;
+    await ready;
+    if (p.bookUid || p.bookId) { await openLibraryBook({ bookUid: p.bookUid, bookId: p.bookId, type: p.type || 'pdf', name: p.name }, p.page); return; }
+    let lib, key;
+    if (p.token) { lib = { kind: 'token', token: p.token }; key = 't:' + p.token; }
+    else if (p.url || p.dataUrl) { lib = { kind: 'url', url: p.url || p.dataUrl }; key = 'u:' + Date.now().toString(36); }
+    else return;
+    await openExtra(registerExtra(key, lib, p.name || 'מסמך', false), p.page);
+  }
+  // קיצור המקשים (ctrl+alt+o): פותח את ספר ה-PDF הנוכחי בקורא, או האחרון שפתוח
+  async function onCommand(payload) {
+    if (!payload || payload.command !== 'openCurrentPdf') return;
+    const r = await call('reader.getCurrentState', {});
+    const st = r.success ? r.data : null;
+    if (!st) return;
+    let target = null;
+    if (st.currentType === 'pdf') target = { currentBookUid: st.currentBookUid, currentId: st.currentId, currentBookId: st.currentBookId, currentIndex: st.currentIndex, currentBook: st.currentBook, currentType: 'pdf' };
+    else {
+      const tabs = (st.openTabs || []).filter((t) => t.type === 'pdf' && !t.isSelf);
+      const t = tabs[tabs.length - 1];
+      if (t) target = { currentId: t.id, currentBookId: t.bookId, currentIndex: t.index, currentBook: t.book, currentType: 'pdf' };
+    }
+    if (!target) { toast.msg('אין ספר PDF פתוח בקורא'); return; }
+    openBookFromReader(target);
+  }
+  function safe(fn) { return (d) => { Promise.resolve().then(() => fn(d)).catch((e) => toast.err('הפעולה נכשלה: ' + (e && e.message || e))); }; }
+
   function renderAll() {
     el.workspace.classList.remove('no-folder');
     renderLibrary();
   }
 
   async function init() {
+    try { await initMain(); } finally { readyRes(); }
+  }
+  async function initMain() {
     hydrateIcons();
     cacheEls();
     wireEvents();
 
     const [settings, foldersSaved, legacyFolder, positions, recentFiles, pinned] = await Promise.all([store.get('settings'), store.get('folders'), store.get('folder'), store.get('positions'), store.get('recentFiles'), store.get('pinned')]);
     if (settings && typeof settings === 'object') S.settings = Object.assign({}, DEFAULT_SETTINGS, settings);
+    if (!settings || settings.showInLibrary === undefined) {        // מפתחות מהצופה הישן (when.storage במניפסט)
+      for (const k of ['showInLibrary', 'tbOpen', 'tbExtract']) { const v = await store.get(k); if (typeof v === 'boolean') S.settings[k] = v; }
+    }
+    await loadExtra();
     if (positions && typeof positions === 'object') S.positions = positions;
     if (Array.isArray(recentFiles)) S.recentFiles = recentFiles.filter((x) => typeof x === 'string').slice(0, RECENT_MAX);
     if (Array.isArray(pinned)) S.pinned = pinned.filter((x) => typeof x === 'string');
@@ -2520,4 +2730,9 @@
     init();
   });
   Otzaria.on('theme.changed', applyTheme);
+  Otzaria.on('reader.toolbar_item_clicked', safe(onToolbar));
+  Otzaria.on('reader.context_menu_item_clicked', safe(onContextMenu));
+  Otzaria.on('plugin.page_opened', safe(onPageOpened));
+  Otzaria.on('app.command', safe(onCommand));
+  Otzaria.on('library.providerBook.openRequested', safe(onProviderOpen));
 })();

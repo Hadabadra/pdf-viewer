@@ -3,7 +3,7 @@
   "id": "com.chadbedera.pdfviewer",
   "name": "ספריית PDF+OCR",
   "version": "4.0.0",
-  "description": "טוען תיקייה פעם אחת, מאתר מסמך לפי חלק מהשם, וקורא אותו עם לשוניות, זום, תוכן עניינים וחיפוש בתוך המסמך. כולל חילוץ טקסט וזיהוי טקסט (OCR) בעברית.",
+  "description": "טוען תיקייה פעם אחת, מאתר מסמך לפי חלק מהשם, וקורא אותו עם לשוניות, זום, תוכן עניינים וחיפוש בתוך המסמך. כולל חילוץ טקסט, זיהוי טקסט (OCR) בעברית, חיפוש הקבצים בספרייה של אוצריא ופתיחת ספרי הספרייה בעמוד הנוכחי.",
   "author": "חד בדרא ומעמע",
   "entrypoint": "index.html",
   "icon": "icon/icon.png",
@@ -14,7 +14,14 @@
     "fs.user_files.read",
     "fs.user_files.write",
     "network.localhost",
-    "app.open_url"
+    "app.open_url",
+    "reader.context_menu",
+    "reader.toolbar",
+    "reader.open",
+    "library.content.read",
+    "library.books.provide",
+    "app.startup_contributions",
+    "app.shortcuts"
   ],
   "network": {
     "enabled": true,
@@ -30,6 +37,73 @@
       "allowOrderBeforeBuiltIns": false,
       "defaultPinned": true,
       "iconName": "fluent:document_pdf_24_regular"
+    },
+    "startup": {
+      "toolbarItems": [
+        {
+          "id": "chadbedera-open-book-file",
+          "type": "button",
+          "title": "פתח בספריית PDF+OCR (בעמוד הנוכחי)",
+          "icon": "document_pdf_24_regular",
+          "contexts": [
+            "reader-pdf"
+          ],
+          "openPlugin": true,
+          "when": {
+            "storage": {
+              "key": "tbOpen",
+              "notEquals": false
+            }
+          }
+        },
+        {
+          "id": "chadbedera-extract-text-toolbar",
+          "type": "button",
+          "title": "חלץ טקסט מהעמוד (טקסט מוטבע או OCR)",
+          "icon": "scan_text_24_regular",
+          "contexts": [
+            "reader-pdf"
+          ],
+          "openPlugin": true,
+          "when": {
+            "storage": {
+              "key": "tbExtract",
+              "notEquals": false
+            }
+          }
+        }
+      ],
+      "contextMenuItems": [
+        {
+          "id": "chadbedera-extract-text",
+          "type": "item",
+          "title": "חלץ טקסט",
+          "icon": "copy_24_regular",
+          "openPlugin": true
+        }
+      ],
+      "shortcuts": [
+        {
+          "id": "chadbedera-open-current-pdf",
+          "label": "פתיחת ספר ה-PDF הנוכחי בספריית PDF+OCR",
+          "key": "ctrl+alt+o",
+          "command": "openCurrentPdf"
+        }
+      ],
+      "libraryBooks": [
+        {
+          "id": "my-pdf-folders",
+          "provider": "pdfocr",
+          "title": "ספריית PDF+OCR",
+          "icon": "document_pdf_24_regular",
+          "when": {
+            "storage": {
+              "key": "showInLibrary",
+              "notEquals": false
+            }
+          }
+        }
+      ]
     }
   },
   "homepage": "https://github.com/e0548433917-gif/pdf-viewer"
