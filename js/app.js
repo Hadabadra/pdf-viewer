@@ -157,7 +157,7 @@
   }
 
   /* ═════════════════════ מצב ═════════════════════ */
-  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false, ocrEngine: 'tesseract', ocrQuality: '2', ocrLines: true, showInLibrary: true, tbOpen: true, tbExtract: true };
+  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false, ocrEngine: 'tesseract', ocrQuality: '2', ocrLines: true, showInLibrary: true, tbOpen: true, tbExtract: true, libAutoClose: true };
   const S = {
     settings: Object.assign({}, DEFAULT_SETTINGS),
     folders: [],             // [{ id, token, name, path, scannedAt, count }]
@@ -1626,16 +1626,27 @@
 
   /* ═════════════════════ סרגל צד (סגירה/פתיחה) ═════════════════════ */
   function isNarrow() { return window.matchMedia('(max-width: 700px)').matches; }
-  function applyLibState() { el.workspace.classList.toggle('lib-collapsed', !!S.settings.libClosed); }
+  // libClosed = בחירת המשתמש (נשמרת). libAutoHidden = נסגר אוטומטית בפתיחת ספר (זמני, לא נשמר)
+  let libAutoHidden = false;
+  function libIsCollapsed() { return !!S.settings.libClosed || libAutoHidden; }
+  function applyLibState() { el.workspace.classList.toggle('lib-collapsed', libIsCollapsed()); }
   function toggleLibrary() {
     if (isNarrow()) { setNarrowView(el.workspace.classList.contains('show-viewer') ? 'library' : 'viewer'); return; }
-    S.settings.libClosed = !S.settings.libClosed;
+    // סגור (ידנית או אוטומטית) → פותחים; פתוח → סוגרים ושומרים
+    S.settings.libClosed = libIsCollapsed() ? false : true;
+    libAutoHidden = false;
     saveSettings();
     applyLibState();
   }
   function showLibrary() {
     if (isNarrow()) { setNarrowView('library'); return; }
-    if (S.settings.libClosed) { S.settings.libClosed = false; saveSettings(); applyLibState(); }
+    if (libIsCollapsed()) { S.settings.libClosed = false; libAutoHidden = false; saveSettings(); applyLibState(); }
+  }
+  // פתיחת ספר סוגרת את סרגל הצד (אלא אם כובתה ההגדרה). בחלון צר המעבר לצופה כבר קורה ב-openDoc
+  function autoCloseLibrary() {
+    if (S.settings.libAutoClose === false || isNarrow() || libIsCollapsed()) return;
+    libAutoHidden = true;
+    applyLibState();
   }
 
   /* ═════════════════════ מסך מלא ═════════════════════ */
@@ -1755,6 +1766,7 @@
   // אם המסמך כבר פתוח בלשונית — עוברים אליה; אחרת פותחים (בלשונית הנוכחית או בחדשה).
   // לשונית ריקה (דף ראשי) נעשה בה שימוש במקום לפתוח עוד לשונית.
   function openOrSwitch(key, inNewTab) {
+    autoCloseLibrary();
     const t = T.tabs.find((x) => x.path === key);
     if (t) { activateTab(t.id); return; }
     if (inNewTab && activeTab().path) addTab(key); else openDoc(key);
@@ -1767,7 +1779,7 @@
     if (path) { renderTabs(); openDoc(path, { force: true }); }
     else {
       showActiveTab();
-      if (!isNarrow() && !S.settings.libClosed) el.search.focus();
+      if (!isNarrow() && !libIsCollapsed()) el.search.focus();
     }
     saveTabs();
   }
@@ -1875,6 +1887,7 @@
     buildSegmented('seg-zoom', [{ id: 'width', label: 'לרוחב' }, { id: 'page', label: 'התאמה לגובה' }, { id: '1', label: '100%' }], 'zoom');
     buildSegmented('seg-view', [{ id: 'tree', label: 'עץ תיקיות' }, { id: 'flat', label: 'רשימה' }], 'view', () => { S.limit = 200; renderLibrary(); });
     setToggle('set-restore', S.settings.restoreLast, (v) => { S.settings.restoreLast = v; saveSettings(); });
+    setToggle('set-libautoclose', S.settings.libAutoClose !== false, (v) => { S.settings.libAutoClose = v; saveSettings(); });
     setToggle('set-fsfloat', S.settings.fsFloatBtn, (v) => { S.settings.fsFloatBtn = v; saveSettings(); applyFsFloat(); });
     buildSegmented('seg-ocr-engine', [{ id: 'tesseract', label: 'Tesseract' }, { id: 'windows', label: 'Windows' }], 'ocrEngine', () => { ocrApplySettings(); if (S.settings.ocrEngine === 'windows') refreshBridgeStatus(false); });
     buildSegmented('seg-ocr-quality', [{ id: '1.5', label: 'מהירה' }, { id: '2', label: 'רגילה' }, { id: '3', label: 'גבוהה' }], 'ocrQuality');
@@ -2519,6 +2532,7 @@
   }
   // פותח רשומה בלשונית הקיימת, או בלשונית חדשה אם בנוכחית כבר יש מסמך אחר
   async function openExtra(e, page) {
+    autoCloseLibrary();
     const opts = { page: page || undefined, norecord: !e.persist };
     const t = T.tabs.find((x) => x.path === e.key);
     if (t && t.id !== T.active) { if (page) t.page = page; activateTab(t.id); return; }

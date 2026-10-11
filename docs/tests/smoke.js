@@ -152,6 +152,20 @@ async function boot(initStore, idx) {
     check('לחיצה חוזרת על אותו ספר עוברת ללשונית הקיימת (בלי כפילות)', () => assert.strictEqual(tabs().length, afterA));
     click(r[1], { ctrlKey: true }); await wait(300);
     check('Ctrl+לחיצה פותחת בלשונית הנוכחית', () => assert.strictEqual(tabs().length, afterA));
+    // סגירה אוטומטית של סרגל הצד בפתיחת ספר (ברירת מחדל), ופתיחה מחדש בכפתור הספרייה
+    const ws = d.getElementById('workspace'), libBtn = d.getElementById('btn-library');
+    check('פתיחת ספר סוגרת את סרגל הצד אוטומטית', () => assert(ws.classList.contains('lib-collapsed'), 'הסרגל נשאר פתוח'));
+    check('הסגירה האוטומטית לא נשמרת בהגדרות', () => assert(!A.store.settings || !A.store.settings.libClosed));
+    libBtn.click(); await wait(100);
+    check('כפתור הספרייה פותח את הסרגל אחרי סגירה אוטומטית', () => assert(!ws.classList.contains('lib-collapsed')));
+    // כיבוי ההגדרה: הסרגל נשאר פתוח
+    d.getElementById('btn-settings').click(); await wait(150);
+    d.getElementById('set-libautoclose').click(); await wait(150);
+    click(r[0]); await wait(200);
+    check('עם ההגדרה כבויה הסרגל נשאר פתוח', () => {
+      assert.strictEqual(A.store.settings.libAutoClose, false);
+      assert(!ws.classList.contains('lib-collapsed'));
+    });
   }
   check('אין שגיאות JS לא צפויות (תרחיש א)', () => assert.deepStrictEqual(A.jsErrors, []));
 
