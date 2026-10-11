@@ -1,113 +1,30 @@
 {
   "schemaVersion": 1,
   "id": "com.chadbedera.pdfviewer",
-  "name": "צופה PDF+OCR",
-  "version": "3.2.0",
-  "description": "צופה PDF, תמונות ומסמכים בעיצוב אוצריא: חיפוש, תוכן עניינים, OCR בעברית, התיקיות שלי בחיפוש הספרייה ופתיחת ספרי PDF בעמוד הנוכחי.",
-  "author": "חד בדרא",
-  "homepage": "https://github.com/e0548433917-gif/pdf-viewer",
-  "type": "webapp",
-  "category": "Utilities",
-  "stability": "stable",
+  "name": "ספריית PDF+OCR",
+  "version": "4.0.0",
+  "description": "טוען תיקיית PDF פעם אחת, מאתר מסמך לפי חלק מהשם, וקורא אותו עם לשוניות, זום, תוכן עניינים וחיפוש בתוך המסמך.",
+  "author": "חד בדרא ומעמע",
+  "entrypoint": "index.html",
+  "icon": "icon/icon.png",
   "minAppVersion": "0.9.98",
   "sdkVersion": "1.x",
-  "entrypoint": "index.html",
-  "network": {
-    "enabled": true,
-    "allowlist": [
-      "127.0.0.1",
-      "localhost"
-    ]
-  },
+  "stability": "stable",
   "permissions": [
-    "feedback.send_email",
-    "reader.context_menu",
-    "reader.toolbar",
-    "reader.open",
-    "library.content.read",
-    "library.books.provide",
-    "fs.user_files.read",
-    "fs.user_files.write",
-    "app.startup_contributions",
-    "app.shortcuts",
-    "app.open_url",
-    "network.localhost",
-    "events.subscribe:settings.changed",
-    "events.subscribe:plugin.permissions_changed"
+    "fs.user_files.read"
   ],
+  "network": {
+    "enabled": false,
+    "allowlist": []
+  },
   "contributes": {
     "toolTab": {
-      "title": "צופה PDF+OCR",
-      "order": 51,
+      "title": "ספריית PDF+OCR",
+      "order": 300,
+      "allowOrderBeforeBuiltIns": false,
       "defaultPinned": true,
-      "iconName": "document_pdf_24_regular"
-    },
-    "startup": {
-      "toolbarItems": [
-        {
-          "id": "chadbedera-open-book-file",
-          "type": "button",
-          "title": "פתח ב-PDF+OCR (בעמוד הנוכחי)",
-          "icon": "document_pdf_24_regular",
-          "contexts": [
-            "reader-pdf"
-          ],
-          "openPlugin": true,
-          "when": {
-            "storage": {
-              "key": "tbOpen",
-              "notEquals": false
-            }
-          }
-        },
-        {
-          "id": "chadbedera-extract-text-toolbar",
-          "type": "button",
-          "title": "חלץ טקסט מהעמוד (טקסט מוטבע או OCR)",
-          "icon": "scan_text_24_regular",
-          "contexts": [
-            "reader-pdf"
-          ],
-          "openPlugin": true,
-          "when": {
-            "storage": {
-              "key": "tbExtract",
-              "notEquals": false
-            }
-          }
-        }
-      ],
-      "contextMenuItems": [
-        {
-          "id": "chadbedera-extract-text",
-          "type": "item",
-          "title": "חלץ טקסט",
-          "icon": "copy_24_regular",
-          "openPlugin": true
-        }
-      ],
-      "shortcuts": [
-        {
-          "id": "chadbedera-open-current-pdf",
-          "label": "פתיחת ספר ה-PDF הנוכחי בצופה PDF+OCR",
-          "key": "ctrl+alt+o",
-          "command": "openCurrentPdf"
-        }
-      ],
-      "libraryBooks": [
-        {
-          "id": "my-pdf-folders",
-          "provider": "pdfocr",
-          "title": "צופה PDF+OCR",
-          "icon": "document_pdf_24_regular",
-          "when": {
-            "storage": {
-              "key": "showInLibrary",
-              "notEquals": false
-            }
-          }
-        }
-      ]
+      "iconName": "fluent:document_pdf_24_regular"
     }
-  }
+  },
+  "homepage": "https://github.com/e0548433917-gif/pdf-viewer"
 }

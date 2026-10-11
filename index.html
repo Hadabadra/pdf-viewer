@@ -1,342 +1,197 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>צופה PDF+OCR</title>
-<link rel="stylesheet" href="./css/app.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ספריית PDF</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-<div class="app-shell">
 
-  <header class="topbar" id="topbar">
-    <button class="icon-btn" id="btn-sidebar" title="חלונית צד (עמודים, תוכן, תיקיות, אחרונים)"><i data-icon="panel_right" class="flip"></i></button>
-    <div class="topbar-title">
-      <h1>צופה PDF+OCR</h1>
-      <span class="topbar-subtitle" id="doc-name" data-t-skip>לא נפתח קובץ</span>
-    </div>
-    <span class="anchor">
-      <button class="icon-btn" id="btn-open" title="פתיחת קובץ (Ctrl+O)"><i data-icon="folder_open"></i></button>
-    </span>
-    <div class="topbar-spacer"></div>
+<div class="app-shell" id="app">
 
-    <div class="topbar-group" id="nav-group">
-      <button class="icon-btn" id="btn-prev" title="העמוד הקודם (PageUp)" disabled><i data-icon="chevron_right" class="flip"></i></button>
-      <input class="page-input" id="page-input" type="text" inputmode="numeric" value="" disabled aria-label="מספר עמוד">
-      <span class="page-total" id="page-total" data-t-skip>/ –</span>
-      <button class="icon-btn" id="btn-next" title="העמוד הבא (PageDown)" disabled><i data-icon="chevron_left" class="flip"></i></button>
-    </div>
-    <div class="topbar-divider hide-narrow"></div>
-    <div class="topbar-group hide-narrow" id="zoom-group">
-      <button class="icon-btn" id="btn-zoom-out" title="הקטנה (Ctrl+-)" disabled><i data-icon="zoom_out"></i></button>
-      <span class="anchor">
-        <button class="zoom-label" id="btn-zoom-menu" title="רמת התקריב" disabled data-t-skip>100%</button>
-        <div class="popover" id="zoom-menu">
-          <button class="menu-item" data-zoom="fit-width"><i data-icon="arrow_autofit_width"></i><span class="mi-text">התאמה לרוחב</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="fit-page"><i data-icon="page_fit"></i><span class="mi-text">עמוד שלם</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <div class="menu-sep"></div>
-          <button class="menu-item" data-zoom="0.5"><span class="mi-text" data-t-skip>50%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="0.75"><span class="mi-text" data-t-skip>75%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="1"><span class="mi-text" data-t-skip>100%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="1.25"><span class="mi-text" data-t-skip>125%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="1.5"><span class="mi-text" data-t-skip>150%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="2"><span class="mi-text" data-t-skip>200%</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item" data-zoom="3"><span class="mi-text" data-t-skip>300%</span><i data-icon="checkmark" class="mi-check"></i></button>
-        </div>
-      </span>
-      <button class="icon-btn" id="btn-zoom-in" title="הגדלה (Ctrl++)" disabled><i data-icon="zoom_in"></i></button>
-    </div>
-    <div class="topbar-spacer"></div>
+  <!-- ───────── לשוניות ───────── -->
+  <div class="tabbar" id="tabbar">
+    <button class="tab-add" id="btn-library" title="הצגה / הסתרה של הספרייה" aria-label="הצגה או הסתרה של הספרייה"><span data-icon="sidebar"></span></button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="לשוניות"></div>
+    <button class="tab-add" id="tab-add" title="לשונית חדשה" aria-label="לשונית חדשה"><span data-icon="plus"></span></button>
+    <span class="tabbar-grow"></span>
+    <button class="tab-add" id="btn-settings" title="הגדרות" aria-label="הגדרות"><span data-icon="settings"></span></button>
+    <button class="tab-add" id="btn-fullscreen" title="מסך מלא" aria-label="מסך מלא"></button>
+  </div>
 
-    <div class="topbar-group">
-      <span id="armed-slot"></span>
-      <button class="icon-btn hide-xnarrow" id="btn-find" title="חיפוש במסמך (Ctrl+F)" disabled><i data-icon="search"></i></button>
-      <span class="anchor">
-        <button class="icon-btn" id="btn-ocr-menu" title="חילוץ טקסט ו-OCR"><i data-icon="scan_text"></i></button>
-        <div class="popover" id="ocr-menu">
-          <div class="menu-label">חילוץ טקסט</div>
-          <button class="menu-item" data-act="extract-page"><i data-icon="document_text"></i><span class="mi-text">חלץ טקסט מהעמוד</span><span class="mi-kbd" data-t-skip>Ctrl+E</span></button>
-          <button class="menu-item" data-act="ocr-page"><i data-icon="scan_text"></i><span class="mi-text">OCR לעמוד הנוכחי</span></button>
-          <button class="menu-item" data-act="ocr-region"><i data-icon="crop"></i><span class="mi-text">OCR לאזור מסומן</span><span class="mi-kbd" data-t-skip>Ctrl+R</span></button>
-          <button class="menu-item" data-act="ocr-all"><i data-icon="text_bullet_list_square"></i><span class="mi-text">OCR לכל המסמך</span></button>
-          <button class="menu-item" data-act="extract-all"><i data-icon="document"></i><span class="mi-text">כל הטקסט המוטבע במסמך</span></button>
-          <div class="menu-sep"></div>
-          <div class="menu-label">ממקור חיצוני</div>
-          <button class="menu-item" data-act="paste"><i data-icon="clipboard_paste"></i><span class="mi-text">הדבק גזרת מסך וחלץ</span><span class="mi-kbd" data-t-skip>Ctrl+V</span></button>
-          <button class="menu-item" data-act="capture"><i data-icon="screenshot"></i><span class="mi-text">צלם מסך ובחר אזור</span></button>
-        </div>
-      </span>
-      <button class="icon-btn" id="btn-textpanel" title="חלונית הטקסט"><i data-icon="panel_left" class="flip"></i></button>
-      <span class="anchor">
-        <button class="icon-btn" id="btn-more" title="פעולות נוספות"><i data-icon="more_vertical"></i></button>
-        <div class="popover" id="more-menu">
-          <button class="menu-item" data-act="open"><i data-icon="folder_open"></i><span class="mi-text">פתיחת קובץ…</span><span class="mi-kbd" data-t-skip>Ctrl+O</span></button>
-          <button class="menu-item" data-act="add-folder"><i data-icon="folder_add"></i><span class="mi-text">הוספת תיקייה…</span></button>
-          <div class="menu-sep"></div>
-          <button class="menu-item doc-only" data-act="find"><i data-icon="search"></i><span class="mi-text">חיפוש במסמך</span><span class="mi-kbd" data-t-skip>Ctrl+F</span></button>
-          <button class="menu-item doc-only" data-act="rotate"><i data-icon="arrow_clockwise"></i><span class="mi-text">סיבוב העמודים</span><span class="mi-kbd" data-t-skip>Ctrl+]</span></button>
-          <button class="menu-item doc-only" data-act="night"><i data-icon="weather_moon"></i><span class="mi-text">עמודים כהים (מצב לילה)</span><i data-icon="checkmark" class="mi-check"></i></button>
-          <button class="menu-item doc-only" data-act="fit-width"><i data-icon="arrow_autofit_width"></i><span class="mi-text">התאמה לרוחב</span></button>
-          <div class="menu-sep"></div>
-          <button class="menu-item doc-only" data-act="print-pages"><i data-icon="print"></i><span class="mi-text">הדפסת המסמך…</span></button>
-          <button class="menu-item doc-only" data-act="close-doc"><i data-icon="dismiss"></i><span class="mi-text">סגירת הקובץ</span></button>
-          <div class="menu-sep"></div>
-          <button class="menu-item" data-act="settings"><i data-icon="settings"></i><span class="mi-text">הגדרות</span></button>
-          <button class="menu-item" data-act="about"><i data-icon="info"></i><span class="mi-text">אודות ומשוב</span></button>
-        </div>
-      </span>
-    </div>
-  </header>
+  <!-- ───────── גוף ───────── -->
+  <div class="workspace" id="workspace">
 
-  <div class="workspace">
-    <aside class="sidebar collapsed" id="sidebar">
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-tab="pages" title="עמודים"><i data-icon="grid"></i><span>עמודים</span></button>
-        <button class="tab" data-tab="toc" title="תוכן עניינים"><i data-icon="text_number_list_rtl"></i><span>תוכן</span></button>
-        <button class="tab" data-tab="files" title="קבצים: אחרונים, התיקיות שלי וספרי PDF פתוחים"><i data-icon="folder"></i><span>קבצים</span></button>
-      </div>
-      <div class="tab-panels">
-        <div class="tab-panel" data-panel="pages"><div class="thumbs" id="thumbs"></div><div class="panel-empty" id="thumbs-empty">אין מסמך פתוח</div></div>
-        <div class="tab-panel" data-panel="toc" hidden><ul class="list" id="toc"></ul><div class="panel-empty" id="toc-empty">למסמך הזה אין תוכן עניינים</div></div>
-        <div class="tab-panel" data-panel="files" hidden>
-          <div class="section-label"><i data-icon="book_open"></i><span class="grow">ספרי PDF פתוחים באוצריא</span><button class="icon-btn small" id="btn-refresh-tabs" title="רענון"><i data-icon="arrow_clockwise"></i></button></div>
-          <ul class="list" id="open-books"></ul>
-          <div class="panel-empty" id="open-books-empty">אין ספרי PDF פתוחים בקורא</div>
-          <div class="section-label"><i data-icon="history"></i><span class="grow">אחרונים</span><button class="icon-btn small" id="btn-clear-recents" title="ניקוי הרשימה"><i data-icon="delete"></i></button></div>
-          <ul class="list" id="recents"></ul>
-          <div class="panel-empty" id="recents-empty">עדיין לא נפתחו קבצים</div>
-          <div class="section-label"><i data-icon="folder"></i><span class="grow">התיקיות שלי</span><button class="icon-btn small" id="btn-add-folder" title="הוספת תיקייה"><i data-icon="folder_add"></i></button></div>
-          <ul class="list" id="folders"></ul>
-          <div class="panel-empty" id="folders-empty">הוסיפו תיקייה כדי לעיין בקבצים שבה מכאן — וקבצי ה-PDF שבה יופיעו גם בחיפוש הספרייה של אוצריא</div>
+    <!-- ספרייה + חיפוש -->
+    <aside class="library" id="library" aria-label="ספרייה">
+      <div class="search-box">
+        <div class="search-field">
+          <span class="search-icon" data-icon="search"></span>
+          <input class="input search-input" id="search" type="text" autofocus autocomplete="off"
+                 spellcheck="false" placeholder="חיפוש לפי חלק מהשם או מהתיקייה…" aria-label="חיפוש מסמך" />
+          <button class="search-clear" id="search-clear" title="נקה חיפוש" aria-label="נקה חיפוש" hidden>
+            <span data-icon="x"></span>
+          </button>
         </div>
       </div>
+      <div class="library-meta" id="lib-meta"></div>
+      <div class="library-list" id="lib-list" role="listbox"></div>
     </aside>
 
-    <main class="viewer" id="viewer" tabindex="0">
-      <div class="pages" id="pages"></div>
-      <div class="welcome" id="welcome">
-        <div class="welcome-card">
-          <div class="welcome-icon"><i data-icon="document_pdf"></i></div>
-          <h2>פתיחת PDF, תמונה או מסמך</h2>
-          <p>גררו לכאן קובץ, או בחרו אותו. אפשר לקרוא את הטקסט המוטבע, לחפש בתוכו, ולהריץ זיהוי טקסט (OCR) בעברית — גם בלי חיבור לאינטרנט.</p>
-          <div class="welcome-actions">
-            <button class="btn filled" id="welcome-open"><i data-icon="folder_open"></i><span>פתיחת קובץ</span></button>
-            <button class="btn" id="welcome-paste"><i data-icon="clipboard_paste"></i><span>הדבקת גזרת מסך</span></button>
-            <button class="btn" id="welcome-folder"><i data-icon="folder_add"></i><span>הוספת תיקייה</span></button>
+    <!-- צופה -->
+    <section class="viewer" id="viewer" aria-label="צופה PDF">
+
+      <div class="viewer-toolbar" id="viewer-toolbar" hidden>
+        <div class="tb-group">
+          <button class="tb-btn tb-text" id="btn-toc" title="תוכן עניינים" aria-label="תוכן עניינים" hidden>
+            <span data-icon="list"></span><span class="btn-label">תוכן</span>
+          </button>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <div class="tb-group">
+          <button class="tb-btn" id="tb-prev" title="עמוד קודם" aria-label="עמוד קודם"><span data-icon="chevron-up"></span></button>
+          <div class="page-box">
+            <input class="page-input" id="page-input" type="text" inputmode="numeric" aria-label="מספר עמוד" />
+            <span class="page-total" id="page-total"></span>
           </div>
-          <div class="welcome-recents" id="welcome-recents" hidden>
-            <div class="section-label"><i data-icon="history"></i><span>נפתחו לאחרונה</span></div>
-            <ul class="list" id="welcome-recent-list"></ul>
-          </div>
-          <div class="kbd-hint">PDF · PNG/JPG/TIFF · DOCX · EPUB · PPTX · XLSX · TXT · HTML</div>
+          <button class="tb-btn" id="tb-next" title="עמוד הבא" aria-label="עמוד הבא"><span data-icon="chevron-down"></span></button>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <div class="tb-group">
+          <button class="tb-btn" id="tb-zoom-out" title="הקטנה (Ctrl ‎−‎)" aria-label="הקטנה"><span data-icon="zoom-out"></span></button>
+          <select class="zoom-select" id="zoom-select" aria-label="רמת זום"></select>
+          <button class="tb-btn" id="tb-zoom-in" title="הגדלה (Ctrl ‎+‎)" aria-label="הגדלה"><span data-icon="zoom-in"></span></button>
+          <button class="tb-btn" id="tb-fit-width" title="התאמה לרוחב" aria-label="התאמה לרוחב"><span data-icon="fit-width"></span></button>
+          <button class="tb-btn" id="tb-fit-page" title="התאמה לעמוד שלם" aria-label="התאמה לעמוד שלם"><span data-icon="fit-page"></span></button>
+        </div>
+
+        <div class="tb-sep"></div>
+
+        <div class="tb-group">
+          <button class="tb-btn" id="tb-find" title="חיפוש בתוך המסמך (Ctrl+F)" aria-label="חיפוש בתוך המסמך"><span data-icon="search"></span></button>
+          <button class="tb-btn tb-text" id="tb-crop" title="חיתוך אזור מהעמוד כתמונה" aria-label="חיתוך אזור כתמונה"><span data-icon="crop"></span><span class="btn-label">חיתוך</span></button>
+          <button class="tb-btn" id="tb-print" title="הדפסה (Ctrl+P)" aria-label="הדפסה"><span data-icon="printer"></span></button>
+          <span class="chip" id="crop-hint" hidden>גררו על העמוד לבחירת אזור · Esc לביטול</span>
+          <span class="chip chip-warn" id="no-text-chip" hidden title="בעמוד הזה אין שכבת טקסט, ולכן אי אפשר לסמן ולהעתיק">אין שכבת טקסט</span>
         </div>
       </div>
+
       <div class="findbar" id="findbar" hidden>
-        <button class="icon-btn small" id="find-close" title="סגירה (Esc)"><i data-icon="dismiss"></i></button>
-        <input type="text" id="find-input" placeholder="חיפוש במסמך…" aria-label="חיפוש במסמך">
-        <label class="find-opt" title="התעלמות מניקוד וטעמים"><input type="checkbox" id="find-nikud" checked><span>בלי ניקוד</span></label>
-        <span class="find-count" id="find-count" data-t-skip></span>
-        <button class="icon-btn small" id="find-prev" title="התוצאה הקודמת (Shift+Enter)"><i data-icon="chevron_up"></i></button>
-        <button class="icon-btn small" id="find-next" title="התוצאה הבאה (Enter)"><i data-icon="chevron_down"></i></button>
-      </div>
-    </main>
-
-    <aside class="textpanel" id="textpanel" hidden>
-      <div class="panel-header">
-        <div class="panel-title"><b id="text-title">טקסט</b><small id="text-sub" data-t-skip></small></div>
-        <button class="icon-btn small" id="btn-close-panel" title="סגירה"><i data-icon="dismiss"></i></button>
-      </div>
-      <div class="panel-tools">
-        <button class="icon-btn small" data-tact="copy" title="העתקה"><i data-icon="copy"></i></button>
-        <button class="icon-btn small" data-tact="save" title="שמירה כקובץ טקסט…"><i data-icon="save"></i></button>
-        <button class="icon-btn small" data-tact="print" title="הדפסה"><i data-icon="print"></i></button>
-        <button class="icon-btn small" data-tact="pdf" title="ייצוא ל-PDF"><i data-icon="document_arrow_down"></i></button>
-        <button class="icon-btn small" data-tact="search" title="חיפוש הטקסט המסומן בספרייה של אוצריא"><i data-icon="book_search"></i></button>
-        <button class="icon-btn small" data-tact="edit" title="עריכת הטקסט (לתיקון שגיאות OCR)"><i data-icon="document_text"></i></button>
-        <button class="icon-btn small" data-tact="clear" title="ניקוי"><i data-icon="delete"></i></button>
-      </div>
-      <div class="text-output" id="text-output" data-empty="כאן יופיע הטקסט שחולץ מהמסמך — מהשכבה המוטבעת או מ-OCR."></div>
-      <div class="panel-footer" id="text-footer" data-t-skip></div>
-    </aside>
-  </div>
-</div>
-
-<div class="overlay-scrim" id="overlay-scrim"></div>
-<div class="overlay-panel" id="overlay" role="dialog" aria-modal="true">
-  <div class="overlay-head">
-    <h2 id="overlay-title">הגדרות</h2>
-    <button class="icon-btn" id="overlay-close" title="סגירה"><i data-icon="dismiss"></i></button>
-  </div>
-  <div class="tabs" role="tablist">
-    <button class="tab active" data-otab="settings"><i data-icon="settings"></i><span>הגדרות</span></button>
-    <button class="tab" data-otab="ocr"><i data-icon="scan_text"></i><span>OCR</span></button>
-    <button class="tab" data-otab="about"><i data-icon="info"></i><span>אודות</span></button>
-  </div>
-  <div class="overlay-body">
-    <section data-opanel="settings">
-      <div class="card">
-        <h3><i data-icon="document_pdf"></i>תצוגה</h3>
-        <div class="setting-row"><div class="sr-text"><b>תקריב ברירת מחדל</b><span>במסמך שנפתח בפעם הראשונה</span></div>
-          <select class="select" id="set-zoom">
-            <option value="fit-width">התאמה לרוחב</option>
-            <option value="fit-page">עמוד שלם</option>
-            <option value="1">100%</option>
-            <option value="1.5">150%</option>
-          </select></div>
-        <div class="setting-row"><div class="sr-text"><b>חזרה לעמוד האחרון</b><span>פתיחת קובץ מהאחרונים במקום שבו הפסקתם</span></div>
-          <label class="switch"><input type="checkbox" id="set-resume"><span class="track"></span></label></div>
-        <div class="setting-row"><div class="sr-text"><b>עמודים כהים במצב לילה</b><span>היפוך צבעי העמודים כשאוצריא במצב כהה</span></div>
-          <label class="switch"><input type="checkbox" id="set-night-auto"><span class="track"></span></label></div>
-        <div class="setting-row"><div class="sr-text"><b>פתיחת חלונית הצד</b><span>להציג עמודים ממוזערים כשנפתח מסמך</span></div>
-          <label class="switch"><input type="checkbox" id="set-sidebar"><span class="track"></span></label></div>
-      </div>
-      <div class="card">
-        <h3><i data-icon="library"></i>שילוב באוצריא</h3>
-        <div class="setting-row"><div class="sr-text"><b>הקבצים שלי בחיפוש הספרייה</b><span>קבצי PDF מ"התיקיות שלי" יופיעו באיתור הספרים של אוצריא, ונפתחים כאן</span></div>
-          <label class="switch"><input type="checkbox" id="set-library"><span class="track"></span></label></div>
-        <div class="setting-row"><div class="sr-text"><b>כפתור "פתח ב-PDF+OCR"</b><span>בסרגל הקורא של ספרי PDF</span></div>
-          <label class="switch"><input type="checkbox" id="set-tb-open"><span class="track"></span></label></div>
-        <div class="setting-row"><div class="sr-text"><b>כפתור "חלץ טקסט"</b><span>בסרגל הקורא של ספרי PDF</span></div>
-          <label class="switch"><input type="checkbox" id="set-tb-extract"><span class="track"></span></label></div>
-        <p class="muted" id="library-sync-status" data-t-skip></p>
-      </div>
-      <div class="card">
-        <h3><i data-icon="calculator"></i>קיצורי מקשים</h3>
-        <ul class="muted">
-          <li><kbd>Ctrl+O</kbd> פתיחה · <kbd>Ctrl+F</kbd> חיפוש · <kbd>Ctrl+E</kbd> חילוץ טקסט · <kbd>Ctrl+R</kbd> OCR לאזור</li>
-          <li><kbd>PageUp</kbd>/<kbd>PageDown</kbd> מעבר עמוד · <kbd>Home</kbd>/<kbd>End</kbd> תחילה/סוף · <kbd>Ctrl+G</kbd> קפיצה לעמוד</li>
-          <li><kbd>Ctrl++</kbd>/<kbd>Ctrl+-</kbd> תקריב · <kbd>Ctrl+0</kbd> התאמה לרוחב · <kbd>Ctrl+]</kbd> סיבוב</li>
-          <li>במסך הקריאה של אוצריא: "פתיחת ספר ה-PDF הנוכחי בצופה" — ניתן להגדרה בהגדרות → קיצורי מקשים</li>
-        </ul>
-      </div>
-    </section>
-
-    <section data-opanel="ocr" hidden>
-      <div class="card">
-        <h3><i data-icon="scan_text"></i>מנוע ה-OCR</h3>
-        <p class="muted">Tesseract.js מובנה בתוסף, כולל עברית — עובד בלי אינטרנט. לזיהוי טוב יותר, המסמך מעובד ברזולוציה גבוהה מזו שעל המסך.</p>
-        <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע הזיהוי</b><span>Tesseract המובנה, או OCR של Windows דרך גשר אוצריא</span></div>
-          <select class="select" id="set-ocr-engine">
-            <option value="tesseract">Tesseract (מובנה)</option>
-            <option value="windows" id="opt-ocr-windows">OCR של Windows (דרך הגשר)</option>
-          </select></div>
-        <div class="setting-row"><div class="sr-text"><b>איכות הזיהוי</b><span>רזולוציה גבוהה = מדויק יותר ואיטי יותר</span></div>
-          <select class="select" id="set-ocr-quality">
-            <option value="2">רגילה</option>
-            <option value="3">גבוהה</option>
-            <option value="1.5">מהירה</option>
-          </select></div>
-        <div class="setting-row"><div class="sr-text"><b>שמירת שורות</b><span>להשאיר את חלוקת השורות של המקור</span></div>
-          <label class="switch"><input type="checkbox" id="set-ocr-lines"><span class="track"></span></label></div>
-      </div>
-      <div class="card" id="win-ocr-card">
-        <h3><i data-icon="arrow_clockwise"></i>OCR של Windows (דרך הגשר)</h3>
-        <p class="muted">מנוע הזיהוי המובנה של Windows פועל דרך "גשר אוצריא" — שירות קטן שמותקן במחשב. הוא אינו חלק מהתוסף, ולכן צריך להוריד אותו פעם אחת.</p>
-        <ol class="muted">
-          <li>לחצו "הורדת הגשר", והורידו את הקובץ <code data-t-skip>OtzariaBridge.exe</code> מעמוד הגרסה האחרונה.</li>
-          <li>הפעילו אותו (הוא רץ ברקע ומופיע במגש המערכת). אם Windows מזהיר — "מידע נוסף" ← "הפעל בכל זאת".</li>
-          <li>ב-Windows: הגדרות ← זמן ושפה ← שפה ← עברית ← אפשרויות שפה ← "זיהוי טקסט" (OCR) ← התקנה.</li>
-          <li>חזרו לכאן ולחצו "בדיקת חיבור", ואז בחרו "OCR של Windows" במנוע הזיהוי.</li>
-        </ol>
-        <div class="diag" id="win-ocr-status" data-t-skip>טרם נבדק</div>
-        <div class="welcome-actions" style="justify-content:flex-start">
-          <button class="btn compact" id="btn-bridge-dl"><i data-icon="open"></i><span>הורדת הגשר</span></button>
-          <button class="btn compact tonal" id="btn-bridge-check"><i data-icon="arrow_clockwise"></i><span>בדיקת חיבור</span></button>
+        <div class="find-field">
+          <span class="search-icon" data-icon="search"></span>
+          <input class="input search-input" id="find-input" type="text" autocomplete="off" spellcheck="false" placeholder="חיפוש בטקסט המסמך…" aria-label="חיפוש בטקסט המסמך" />
         </div>
-        <p class="muted">בלי הגשר או בלי חבילת השפה, הצופה ממשיך להשתמש ב-Tesseract המובנה.</p>
+        <span class="find-count" id="find-count"></span>
+        <button class="tb-btn" id="find-prev" title="תוצאה קודמת (Shift+Enter)" aria-label="תוצאה קודמת"><span data-icon="chevron-up"></span></button>
+        <button class="tb-btn" id="find-next" title="תוצאה הבאה (Enter)" aria-label="תוצאה הבאה"><span data-icon="chevron-down"></span></button>
+        <button class="tb-btn" id="find-close" title="סגירה (Esc)" aria-label="סגירה"><span data-icon="x"></span></button>
       </div>
-      <div class="card">
-        <h3><i data-icon="add"></i>שפות</h3>
-        <div id="lang-list"></div>
-        <p class="muted">אפשר להוסיף שפות (למשל אנגלית) מקובץ <code data-t-skip>.traineddata</code> של Tesseract:</p>
-        <div class="welcome-actions" style="justify-content:flex-start">
-          <button class="btn compact" id="btn-lang-page"><i data-icon="open"></i><span>לעמוד ההורדות</span></button>
-          <button class="btn compact tonal" id="btn-add-lang"><i data-icon="add"></i><span>הוספת שפה מקובץ</span></button>
+
+      <div class="viewer-body" id="viewer-body" hidden>
+        <aside class="toc-panel" id="toc-panel" aria-label="תוכן עניינים" hidden>
+          <div class="toc-head">תוכן עניינים</div>
+          <div class="toc-list" id="toc-list"></div>
+        </aside>
+        <div class="pages-scroll" id="pages-scroll" tabindex="0">
+          <div class="pages" id="pages"></div>
         </div>
-        <input type="file" id="lang-file-input" accept=".traineddata" hidden>
+        <div class="doc-status" id="doc-status" hidden></div>
       </div>
-      <div class="card">
-        <h3><i data-icon="warning"></i>אבחון</h3>
-        <div class="diag" id="diag-box" data-t-skip>טרם נבדק</div>
-        <button class="btn compact" id="btn-diag"><i data-icon="arrow_clockwise"></i><span>בדיקת המנוע</span></button>
-      </div>
-    </section>
 
-    <section data-opanel="about" hidden>
-      <div class="card">
-        <h3><i data-icon="document_pdf"></i>צופה PDF+OCR <span class="muted" id="about-version" data-t-skip></span></h3>
-        <p>פתיחת קבצי PDF, תמונה ומסמכים באוצריא — עם חיפוש, תוכן עניינים, בחירת טקסט וזיהוי טקסט (OCR) בעברית.</p>
-        <p class="muted">מאת חד בדרא · נבנה בעזרת Claude</p>
-      </div>
-      <div class="card" id="whats-new">
-        <h3><i data-icon="add"></i>מה חדש</h3>
-        <span class="version-tag" data-t-skip>3.0.0</span>
-        <ul>
-          <li>עיצוב חדש לגמרי, תואם לממשק של אוצריא (כולל מצב כהה וגופני הקריאה שלכם).</li>
-          <li>גלילה רציפה, עמודים ממוזערים, תוכן עניינים, קפיצה לעמוד, סיבוב ותקריב חכם.</li>
-          <li>חיפוש בתוך המסמך (גם בלי ניקוד), ובחירת טקסט ישירות מהעמוד.</li>
-          <li>OCR לאזור מסומן ולכל המסמך, וטקסט שאפשר לערוך, לשמור כקובץ, להדפיס ולייצא ל-PDF.</li>
-          <li>"התיקיות שלי": עיון בקבצים מתוך התוסף — וקבצי ה-PDF שבהן מופיעים בחיפוש הספרייה של אוצריא.</li>
-          <li>"אחרונים" נפתחים מיד בלי לבחור שוב, וחוזרים לעמוד שבו הפסקתם. ספרי PDF מהספרייה נפתחים בעמוד שבו אתם נמצאים.</li>
-          <li>קיצור מקשים מהקורא של אוצריא, תמיכה בתצוגה באנגלית, ו-TIFF מרובה עמודים.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h3><i data-icon="person_feedback"></i>משוב</h3>
-        <textarea class="textarea" id="feedback-text" placeholder="מה תרצו לשתף לגבי התוסף?"></textarea>
-        <button class="btn filled" id="btn-feedback"><span>שליחה</span></button>
-        <p class="muted" id="feedback-status" data-t-skip></p>
-      </div>
-      <div class="card">
-        <h3><i data-icon="info"></i>טוב לדעת</h3>
-        <ul class="muted">
-          <li>בספרי PDF של הספרייה: הכפתור "פתח ב-PDF+OCR" בסרגל הקורא פותח כאן את קובץ הספר עצמו, בעמוד שבו אתם נמצאים.</li>
-          <li>גזרת מסך (Win+Shift+S) והדבקה כאן מחלצת טקסט מכל דבר שרואים על המסך.</li>
-          <li>תפריט הלחיצה הימנית של אוצריא אינו פעיל במסך PDF — לכן הפעולות שם נמצאות בסרגל הקורא.</li>
-          <li>גודל התוסף נובע ממנוע ה-OCR המובנה, כדי שיעבוד גם בלי רשת.</li>
-        </ul>
-      </div>
+      <!-- מצב ריק / פתיחה ראשונה / סריקה -->
+      <div class="stage" id="stage"></div>
     </section>
   </div>
 </div>
 
-<div class="snackbar" id="snackbar" role="status" aria-live="polite"><span id="snackbar-text" data-t-skip></span></div>
-<div class="progress" id="progress" hidden>
-  <div class="progress-row"><span id="progress-text" data-t-skip></span><button class="btn compact text" id="progress-cancel">ביטול</button></div>
-  <div class="progress-bar" id="progress-bar"><div></div></div>
-</div>
-<div class="ctx-menu" id="ctx-menu" hidden>
-  <button class="menu-item" data-cact="copy"><i data-icon="copy"></i><span class="mi-text">העתקה</span></button>
-  <button class="menu-item" data-cact="search"><i data-icon="book_search"></i><span class="mi-text">חיפוש הסימון בספרייה</span></button>
-  <div class="menu-sep"></div>
-  <button class="menu-item" data-cact="extract"><i data-icon="document_text"></i><span class="mi-text">חלץ טקסט מהעמוד</span></button>
-  <button class="menu-item" data-cact="ocr"><i data-icon="scan_text"></i><span class="mi-text">OCR לעמוד</span></button>
-  <button class="menu-item" data-cact="region"><i data-icon="crop"></i><span class="mi-text">OCR לאזור מסומן</span></button>
-</div>
-<div class="capture-overlay" id="capture-overlay" hidden>
-  <div class="capture-hint">גררו לסימון האזור, ואז "חלץ מהבחירה" (Esc לביטול)</div>
-  <div class="capture-wrap" id="capture-wrap"><img id="capture-img" alt=""><div class="capture-sel" id="capture-sel" hidden></div></div>
-  <div class="capture-actions" id="capture-actions" hidden>
-    <button class="btn filled" id="capture-confirm"><i data-icon="scan_text"></i><span>חלץ מהבחירה</span></button>
-    <button class="btn tonal" id="capture-cancel"><span>ביטול</span></button>
-  </div>
-</div>
-<div class="print-root" id="print-root"></div>
-<input type="file" id="file-input" hidden>
+<!-- ───────── חלונית הגדרות (Overlay) ───────── -->
+<div class="overlay-scrim" id="settings-scrim"></div>
+<aside class="overlay-panel" id="settings-panel" aria-label="הגדרות">
+  <div class="panel-head">הגדרות</div>
+  <div class="panel-body">
 
-<script src="./vendor/pdf.min.js"></script>
-<script src="./vendor/tesseract.min.js"></script>
-<script src="./vendor/jszip.min.js"></script>
-<script src="./vendor/UTIF.js"></script>
-<script src="./js/icons.js"></script>
-<script src="./js/lang-en.js"></script>
-<script src="./js/core.js"></script>
-<script src="./js/bridge.js"></script>
-<script src="./js/viewer.js"></script>
-<script src="./js/find.js"></script>
-<script src="./js/ocr.js"></script>
-<script src="./js/files.js"></script>
-<script src="./js/capture.js"></script>
-<script src="./js/app.js"></script>
+    <section class="settings-card">
+      <h3 class="settings-card-title">תיקיות</h3>
+      <div class="settings-card-body">
+        <div id="folder-list"></div>
+        <div class="settings-row settings-actions settings-actions-top">
+          <button class="btn-secondary" id="set-add"><span data-icon="folder-plus"></span>הוספת תיקייה</button>
+          <button class="btn-secondary" id="set-rescan"><span data-icon="refresh"></span>סריקה מחדש של הכול</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-card">
+      <h3 class="settings-card-title">תצוגה</h3>
+      <div class="settings-card-body">
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">זום בפתיחת מסמך</div>
+            <div class="settings-row-subtitle">רמת ההגדלה ההתחלתית</div>
+          </div>
+          <div class="segmented" id="seg-zoom"></div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">תצוגת הספרייה</div>
+            <div class="settings-row-subtitle">כשאין חיפוש פעיל</div>
+          </div>
+          <div class="segmented" id="seg-view"></div>
+        </div>
+        <div class="settings-row toggle-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">פתיחה מחדש של המסמך האחרון</div>
+            <div class="settings-row-subtitle">חוזר לאותו עמוד</div>
+          </div>
+          <button class="switch" id="set-restore" role="switch" aria-label="פתיחה מחדש של המסמך האחרון"></button>
+        </div>
+        <div class="settings-row toggle-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">התאמת עמודים למצב כהה</div>
+            <div class="settings-row-subtitle">הפיכת צבעי העמוד כשהערכה כהה</div>
+          </div>
+          <button class="switch" id="set-invert" role="switch" aria-label="התאמת עמודים למצב כהה"></button>
+        </div>
+        <div class="settings-row toggle-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">כפתור יציאה מרחף במסך מלא</div>
+            <div class="settings-row-subtitle">אפשר תמיד לצאת גם עם Esc</div>
+          </div>
+          <button class="switch" id="set-fsfloat" role="switch" aria-label="כפתור יציאה מרחף במסך מלא"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-card">
+      <h3 class="settings-card-title">אודות</h3>
+      <div class="settings-card-body">
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">ספריית PDF</div>
+            <div class="settings-row-subtitle" id="about-version"></div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-subtitle">התיקייה נסרקת פעם אחת והאינדקס נשמר. מסמכים נפתחים ישירות מהדיסק, ללא העתקה. רינדור באמצעות pdf.js ‏(Mozilla, Apache 2.0).</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</aside>
+
+<button class="fs-exit" id="fs-exit" title="יציאה ממסך מלא (Esc)" aria-label="יציאה ממסך מלא"><span data-icon="minimize"></span></button>
+
+<div class="modal-scrim" id="modal-scrim" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+
+<script src="vendor/pdf.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
