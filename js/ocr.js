@@ -85,6 +85,13 @@
 
   /** OCR על קנבס/תמונה. onProgress(0..1) אופציונלי. */
   O.recognize = async function (source, onProgress) {
+    if (PV.settings.ocrEngine === 'windows' && PV.bridge.ocrReady() && source instanceof HTMLCanvasElement) {
+      try {
+        const t = await PV.bridge.recognizeCanvas(source);
+        if (onProgress) onProgress(1);
+        return tidy(t);
+      } catch (e) { /* כשל בגשר — חוזרים בשקט ל-Tesseract */ }
+    }
     const w = await getWorker();
     progressHook = onProgress || null;
     try {

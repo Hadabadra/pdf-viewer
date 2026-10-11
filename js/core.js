@@ -3,7 +3,7 @@
   'use strict';
 
   const PV = (window.PV = window.PV || {});
-  PV.version = '3.0.0';
+  PV.version = '3.1.0';
   const $ = (PV.$ = (id) => document.getElementById(id));
 
   // ── אייקונים ──────────────────────────────────────────────────────────
@@ -117,6 +117,7 @@
     sidebar: true,
     ocrQuality: 2,
     ocrLines: true,
+    ocrEngine: 'tesseract', // 'tesseract' | 'windows' (דרך גשר אוצריא)
   };
   PV.loadSettings = async function () {
     const saved = await PV.store.get('settings', null);

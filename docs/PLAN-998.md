@@ -26,7 +26,8 @@
 בדיקה מקומית: `node otzaria-plugin-validator/src/cli.js . --fail-on-warnings`.
 
 ## OCR של Windows דרך גשר אוצריא (תלוי בגשר)
-**התנאי להתחלה:** נקודת הקצה `POST /ocr` קיימת בגשר (ריפו e0548433917-gif/otzaria-system-tools, `docs/ROADMAP.md`).
+**סטטוס: בוצע בגרסה 3.1.0 (קוד); נקודות הקצה בגשר הן `/ocr/status` ו-`/ocr/recognize` (גשר 1.5). מבחן השוואה על טקסטים תורניים נשאר לבדיקה על Windows אמיתי.**
+**התנאי להתחלה (התקיים):** נקודת הקצה `POST /ocr` קיימת בגשר (ריפו e0548433917-gif/otzaria-system-tools, `docs/ROADMAP.md`).
 משימות בצופה, אחרי שהגשר שוחרר:
 1. הרשאה `network.localhost` ובדיקת זמינות הגשר והמנוע (חבילת שפה לעברית).
 2. אפשרות חדשה בבחירת מנוע ה-OCR: "OCR של Windows (דרך הגשר)", מוצגת רק כשהגשר זמין.

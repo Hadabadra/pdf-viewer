@@ -336,6 +336,26 @@
     else window.open(url, '_blank');
   });
 
+  // OCR של Windows דרך הגשר
+  async function refreshWinOcr() {
+    const box = $('win-ocr-status');
+    box.textContent = PV.t('בודק חיבור לגשר…');
+    const st = await PV.bridge.checkOcr();
+    let msg;
+    if (!PV.hasOtz()) msg = PV.t('פועל מחוץ לאוצריא');
+    else if (!st.bridge) msg = PV.t('הגשר לא זמין (לא מותקן, לא פועל, או שחסרה הרשאת רשת מקומית)');
+    else if (!st.available || !st.hebrew) msg = PV.t('הגשר מחובר, אך חבילת OCR לעברית אינה מותקנת ב-Windows');
+    else msg = PV.t('מחובר ומוכן: OCR של Windows בעברית');
+    box.textContent = msg;
+    $('opt-ocr-windows').disabled = !PV.bridge.ocrReady();
+    if (!PV.bridge.ocrReady() && PV.settings.ocrEngine === 'windows') $('set-ocr-engine').value = 'tesseract';
+  }
+  $('btn-bridge-check').addEventListener('click', refreshWinOcr);
+  $('btn-bridge-dl').addEventListener('click', () => {
+    if (PV.hasOtz()) PV.call('app.openUrl', { url: PV.BRIDGE_URL }).catch(() => PV.toast(PV.BRIDGE_URL, { long: true }));
+    else window.open(PV.BRIDGE_URL, '_blank');
+  });
+
   // אבחון
   $('btn-diag').addEventListener('click', async () => {
     const box = $('diag-box');
@@ -490,6 +510,8 @@
     bindSetting('set-sidebar', 'sidebar');
     bindSetting('set-ocr-quality', 'ocrQuality', Number);
     bindSetting('set-ocr-lines', 'ocrLines');
+    bindSetting('set-ocr-engine', 'ocrEngine');
+    refreshWinOcr();
     bindStoreSwitch('set-library', 'showInLibrary', (on) => { if (on) Fs.syncLibrary({ verbose: true }); else $('library-sync-status').textContent = PV.t('הקבצים הוסתרו מחיפוש הספרייה'); });
     bindStoreSwitch('set-tb-open', 'tbOpen');
     bindStoreSwitch('set-tb-extract', 'tbExtract');

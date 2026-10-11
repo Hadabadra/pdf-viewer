@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.chadbedera.pdfviewer",
   "name": "צופה PDF+OCR",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "צופה PDF, תמונות ומסמכים בעיצוב אוצריא: חיפוש, תוכן עניינים, OCR בעברית, התיקיות שלי בחיפוש הספרייה ופתיחת ספרי PDF בעמוד הנוכחי.",
   "author": "חד בדרא",
   "homepage": "https://github.com/e0548433917-gif/pdf-viewer",
@@ -13,8 +13,11 @@
   "sdkVersion": "1.x",
   "entrypoint": "index.html",
   "network": {
-    "enabled": false,
-    "allowlist": []
+    "enabled": true,
+    "allowlist": [
+      "127.0.0.1",
+      "localhost"
+    ]
   },
   "permissions": [
     "feedback.send_email",
@@ -28,6 +31,7 @@
     "app.startup_contributions",
     "app.shortcuts",
     "app.open_url",
+    "network.localhost",
     "events.subscribe:settings.changed",
     "events.subscribe:plugin.permissions_changed"
   ],

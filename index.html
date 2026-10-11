@@ -215,6 +215,11 @@
       <div class="card">
         <h3><i data-icon="scan_text"></i>מנוע ה-OCR</h3>
         <p class="muted">Tesseract.js מובנה בתוסף, כולל עברית — עובד בלי אינטרנט. לזיהוי טוב יותר, המסמך מעובד ברזולוציה גבוהה מזו שעל המסך.</p>
+        <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע הזיהוי</b><span>Tesseract המובנה, או OCR של Windows דרך גשר אוצריא</span></div>
+          <select class="select" id="set-ocr-engine">
+            <option value="tesseract">Tesseract (מובנה)</option>
+            <option value="windows" id="opt-ocr-windows">OCR של Windows (דרך הגשר)</option>
+          </select></div>
         <div class="setting-row"><div class="sr-text"><b>איכות הזיהוי</b><span>רזולוציה גבוהה = מדויק יותר ואיטי יותר</span></div>
           <select class="select" id="set-ocr-quality">
             <option value="2">רגילה</option>
@@ -223,6 +228,22 @@
           </select></div>
         <div class="setting-row"><div class="sr-text"><b>שמירת שורות</b><span>להשאיר את חלוקת השורות של המקור</span></div>
           <label class="switch"><input type="checkbox" id="set-ocr-lines"><span class="track"></span></label></div>
+      </div>
+      <div class="card" id="win-ocr-card">
+        <h3><i data-icon="arrow_clockwise"></i>OCR של Windows (דרך הגשר)</h3>
+        <p class="muted">מנוע הזיהוי המובנה של Windows פועל דרך "גשר אוצריא" — שירות קטן שמותקן במחשב. הוא אינו חלק מהתוסף, ולכן צריך להוריד אותו פעם אחת.</p>
+        <ol class="muted">
+          <li>לחצו "הורדת הגשר", והורידו את הקובץ <code data-t-skip>OtzariaBridge.exe</code> מעמוד הגרסה האחרונה.</li>
+          <li>הפעילו אותו (הוא רץ ברקע ומופיע במגש המערכת). אם Windows מזהיר — "מידע נוסף" ← "הפעל בכל זאת".</li>
+          <li>ב-Windows: הגדרות ← זמן ושפה ← שפה ← עברית ← אפשרויות שפה ← "זיהוי טקסט" (OCR) ← התקנה.</li>
+          <li>חזרו לכאן ולחצו "בדיקת חיבור", ואז בחרו "OCR של Windows" במנוע הזיהוי.</li>
+        </ol>
+        <div class="diag" id="win-ocr-status" data-t-skip>טרם נבדק</div>
+        <div class="welcome-actions" style="justify-content:flex-start">
+          <button class="btn compact" id="btn-bridge-dl"><i data-icon="open"></i><span>הורדת הגשר</span></button>
+          <button class="btn compact tonal" id="btn-bridge-check"><i data-icon="arrow_clockwise"></i><span>בדיקת חיבור</span></button>
+        </div>
+        <p class="muted">בלי הגשר או בלי חבילת השפה, הצופה ממשיך להשתמש ב-Tesseract המובנה.</p>
       </div>
       <div class="card">
         <h3><i data-icon="add"></i>שפות</h3>
@@ -310,6 +331,7 @@
 <script src="./js/icons.js"></script>
 <script src="./js/lang-en.js"></script>
 <script src="./js/core.js"></script>
+<script src="./js/bridge.js"></script>
 <script src="./js/viewer.js"></script>
 <script src="./js/find.js"></script>
 <script src="./js/ocr.js"></script>
