@@ -36,7 +36,7 @@
       "order": 300,
       "allowOrderBeforeBuiltIns": false,
       "defaultPinned": true,
-      "iconName": "fluent:document_pdf_24_regular"
+      "iconName": "document_pdf_24_regular"
     },
     "startup": {
       "toolbarItems": [
