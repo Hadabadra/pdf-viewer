@@ -64,7 +64,7 @@
     let pdf = null;
     if (kind === 'pdf') {
       // גופני ה-PDF הסטנדרטיים (Foxit/Liberation) — בלעדיהם גופנים לא מוטבעים מוצגים משובשים (עברית ודפוס ישן)
-      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, standardFontDataUrl: new URL('vendor/standard_fonts/', document.baseURI).href }).promise;
+      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, standardFontDataUrl: new URL('vendor/standard_fonts/', document.baseURI).href, cMapUrl: new URL('vendor/cmaps/', document.baseURI).href, cMapPacked: true }).promise;
     }
     V.close();
     const gen = V.gen;
@@ -309,7 +309,8 @@
     if (!d) return;
     const entry = { gen, task: null };
     V.rendered.set(n, entry);
-    const dpr = window.devicePixelRatio || 1;
+    // חדות: דגימת־יתר (לפחות פי 2) עם תקרה לזיכרון הקנבס
+    const dpr = Math.max(window.devicePixelRatio || 1, 2);
     const canvas = document.createElement('canvas');
     canvas.className = 'page-canvas';
     try {
@@ -317,10 +318,11 @@
         const page = await V.doc.pdf.getPage(n);
         if (gen !== V.gen || V.rendered.get(n) !== entry) return;
         const viewport = page.getViewport({ scale: V.scale, rotation: (page.rotate + V.rotation) % 360 });
-        canvas.width = Math.floor(viewport.width * dpr);
-        canvas.height = Math.floor(viewport.height * dpr);
+        const q = Math.max(1, Math.min(dpr, Math.sqrt(24e6 / (viewport.width * viewport.height))));
+        canvas.width = Math.floor(viewport.width * q);
+        canvas.height = Math.floor(viewport.height * q);
         d.insertBefore(canvas, d.firstChild);
-        entry.task = page.render({ canvasContext: canvas.getContext('2d'), viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null });
+        entry.task = page.render({ canvasContext: canvas.getContext('2d'), viewport, transform: q !== 1 ? [q, 0, 0, q, 0, 0] : null });
         await entry.task.promise;
         if (gen !== V.gen || V.rendered.get(n) !== entry) return;
         await renderTextLayer(n, page, viewport, d, gen, entry);
