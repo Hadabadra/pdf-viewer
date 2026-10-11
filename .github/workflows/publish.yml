@@ -58,6 +58,7 @@ jobs:
           otzaria-user: ${{ secrets.OTZARIA_USER }}
           otzaria-password: ${{ secrets.OTZARIA_PASSWORD }}
           publish: ${{ github.event.inputs.publish || (github.ref == 'refs/heads/main' && 'auto' || 'false') }}
+          reports-consent: 'true'
           force: ${{ github.event.inputs.force || false }}
 
       - name: שומר גודל החבילה
