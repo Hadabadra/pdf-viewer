@@ -1,4 +1,4 @@
-/* ספריית PDF — תוסף לאוצריא
+/* ספריית PDF+OCR — תוסף לאוצריא
  * סריקת תיקייה חד-פעמית (גישה קבועה) · חיפוש לפי חלק מהשם · צופה PDF (pdf.js)
  */
 (function () {
@@ -38,6 +38,7 @@
     printer: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
     pin: '<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/>',
+    hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
     minimize: '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>'
   };
   function svg(name) {
@@ -153,7 +154,7 @@
   }
 
   /* ═════════════════════ מצב ═════════════════════ */
-  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false };
+  const DEFAULT_SETTINGS = { zoom: 'width', view: 'tree', restoreLast: true, invert: true, libClosed: false, fsFloatBtn: false, libW: 0, fsHideToolbar: true, fsHideTabs: true, hand: false };
   const S = {
     settings: Object.assign({}, DEFAULT_SETTINGS),
     folders: [],             // [{ id, token, name, path, scannedAt, count }]
@@ -276,7 +277,7 @@
       'toc-panel', 'toc-list', 'pages-scroll', 'pages', 'doc-status', 'stage', 'btn-toc', 'btn-library', 'btn-settings',
       'tb-prev', 'tb-next', 'page-input', 'page-total', 'tb-zoom-out', 'tb-zoom-in', 'zoom-select', 'tb-fit-width', 'tb-fit-page',
       'no-text-chip', 'settings-panel', 'settings-scrim', 'tabbar', 'tabs', 'tab-add', 'btn-fullscreen',
-      'tb-crop', 'tb-print', 'crop-hint', 'modal-scrim', 'modal', 'fs-exit'
+      'tb-crop', 'tb-print', 'crop-hint', 'modal-scrim', 'modal', 'fs-exit', 'lib-resizer', 'tb-hand'
     ].forEach((id) => { el[id] = $(id); });
   }
 
@@ -288,7 +289,7 @@
 
     if (!S.entries.length) {
       el['lib-meta'].innerHTML = '';
-      list.innerHTML = '<div class="empty-note">לא נמצאו קבצי PDF בתיקייה.</div>';
+      list.innerHTML = '<div class="empty-note">לא נמצאו מסמכים בתיקייה.</div>';
       S.flatItems = [];
       return;
     }
@@ -395,7 +396,7 @@
     showStage(
       '<div class="card stage-card">' +
       '<div class="stage-icon" data-icon="folder"></div>' +
-      '<div class="stage-title">טעינת תיקיית PDF</div>' +
+      '<div class="stage-title">טעינת תיקייה</div>' +
       '<div class="stage-text">בחרו תיקייה אחת שמכילה את המסמכים שלכם, כולל תתי־התיקיות.<br>' +
       'הסריקה נעשית <strong>פעם אחת</strong> והרשימה נשמרת — בפעמים הבאות הכול זמין מיד.</div>' +
       '<div class="stage-actions"><button class="btn-primary" id="st-pick"><span data-icon="folder-plus"></span>בחירת תיקייה</button></div>' +
@@ -409,8 +410,8 @@
     if (!n) {
       showStage(
         '<div class="card stage-card"><div class="stage-icon" data-icon="alert"></div>' +
-        '<div class="stage-title">לא נמצאו קבצי PDF</div>' +
-        '<div class="stage-text">בתיקייה <strong>' + esc(folderLabel()) + '</strong> אין קבצי PDF.</div>' +
+        '<div class="stage-title">לא נמצאו מסמכים</div>' +
+        '<div class="stage-text">בתיקייה <strong>' + esc(folderLabel()) + '</strong> אין מסמכים נתמכים.</div>' +
         '<div class="stage-actions"><button class="btn-secondary" id="st-rescan"><span data-icon="refresh"></span>סריקה מחדש</button>' +
         '<button class="btn-primary" id="st-pick"><span data-icon="folder-plus"></span>בחירת תיקייה אחרת</button></div></div>');
       $('st-rescan').onclick = () => rescan();
@@ -500,7 +501,7 @@
         if (now - last < 120) return;
         last = now;
         const st = $('scan-stat'), dr = $('scan-dir');
-        if (st) st.textContent = pre + 'נסרקו ' + p.scanned.toLocaleString('he-IL') + ' תיקיות · נמצאו ' + p.found.toLocaleString('he-IL') + ' קבצי PDF';
+        if (st) st.textContent = pre + 'נסרקו ' + p.scanned.toLocaleString('he-IL') + ' תיקיות · נמצאו ' + p.found.toLocaleString('he-IL') + ' מסמכים';
         if (dr) dr.textContent = p.dir || '/';
       }, ctl);
       results.push({ folder, result });
@@ -570,7 +571,7 @@
 
   // הוספת תיקייה (גם הראשונה)
   async function addFolder() {
-    const r = await call('fs.pickUserFolder', { title: 'בחירת תיקיית PDF' });
+    const r = await call('fs.pickUserFolder', { title: 'בחירת תיקייה' });
     if (!r.success) { toast.err(errText(r)); return; }
     if (r.data.cancelled) return;
     const tok = r.data.folderToken;
@@ -736,7 +737,7 @@
     opts = opts || {};
     const entry = S.byPath.get(path);
     if (!entry || !S.folders.length) return;
-    if (!setupPdfJs()) { toast.err('רכיב ה-PDF לא נטען'); return; }
+    if (!setupPdfJs()) { toast.err('רכיב התצוגה לא נטען'); return; }
     if (V.path === path && V.pdf && !opts.force) { setNarrowView('viewer'); goToPage(opts.page || V.current); return; }
     const tab = activeTab();
     tab.path = path; tab.page = opts.page || null;
@@ -803,7 +804,7 @@
     if (!pdf) {
       const n = lastErr && lastErr.name;
       let msg = 'לא ניתן לפתוח את המסמך.';
-      if (n === 'InvalidPDFException') msg = 'הקובץ אינו PDF תקין או שהוא פגום.';
+      if (n === 'InvalidPDFException') msg = 'הקובץ אינו תקין או שהוא פגום.';
       else if (n === 'MissingPDFException') msg = 'הקובץ לא נמצא.';
       else if (n === 'PasswordException') msg = 'נדרשת סיסמה תקינה כדי לפתוח את המסמך.';
       docStatus('<div class="stage-icon" data-icon="alert"></div><div>' + esc(msg) + '</div>' +
@@ -1037,7 +1038,7 @@
   }
   function buildZoomSelect() {
     const s = el['zoom-select'];
-    s.innerHTML = '<option value="width">התאמה לרוחב</option><option value="page">עמוד שלם</option>' +
+    s.innerHTML = '<option value="width">התאמה לרוחב</option><option value="page">התאמה לגובה</option>' +
       PRESETS.map((z) => '<option value="' + z + '">' + Math.round(z * 100) + '%</option>').join('') +
       '<option value="custom" hidden></option>';
     s.onchange = () => {
@@ -1051,7 +1052,7 @@
     const pct = Math.round(V.scale * 100) + '%';
     const opts = s.options;
     opts[0].textContent = 'התאמה לרוחב' + (V.mode === 'width' ? ' · ' + pct : '');
-    opts[1].textContent = 'עמוד שלם' + (V.mode === 'page' ? ' · ' + pct : '');
+    opts[1].textContent = 'התאמה לגובה' + (V.mode === 'page' ? ' · ' + pct : '');
     const custom = opts[opts.length - 1];
     if (V.mode === 'width' || V.mode === 'page') s.value = V.mode;
     else {
@@ -1491,7 +1492,7 @@
   function showCropDialog(blob, w, h, n) {
     const url = URL.createObjectURL(blob);
     const en = S.byPath.get(V.path);
-    const fname = ((en ? en.disp : 'PDF') + ' - עמוד ' + n).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.png';
+    const fname = ((en ? en.disp : 'מסמך') + ' - עמוד ' + n).replace(/[\\/:*?"<>|]+/g, ' ').trim() + '.png';
     openModal(
       '<div class="modal-title">תמונה מהחיתוך</div>' +
       '<div class="modal-body center"><div class="crop-preview"><img id="crop-img" alt="תצוגה מקדימה"></div>' +
@@ -1859,10 +1860,12 @@
       '<button class="icon-btn danger" data-remove="' + esc(f.id) + '" title="הסרת התיקייה" aria-label="הסרת התיקייה">' + svg('trash') + '</button></div>').join('')
       : '<div class="settings-row"><div class="settings-row-text"><div class="settings-row-title">לא נבחרה תיקייה</div><div class="settings-row-subtitle">הוסיפו תיקייה כדי להתחיל</div></div></div>';
     $('set-rescan').disabled = !S.folders.length;
-    buildSegmented('seg-zoom', [{ id: 'width', label: 'לרוחב' }, { id: 'page', label: 'עמוד שלם' }, { id: '1', label: '100%' }], 'zoom');
+    buildSegmented('seg-zoom', [{ id: 'width', label: 'לרוחב' }, { id: 'page', label: 'התאמה לגובה' }, { id: '1', label: '100%' }], 'zoom');
     buildSegmented('seg-view', [{ id: 'tree', label: 'עץ תיקיות' }, { id: 'flat', label: 'רשימה' }], 'view', () => { S.limit = 200; renderLibrary(); });
     setToggle('set-restore', S.settings.restoreLast, (v) => { S.settings.restoreLast = v; saveSettings(); });
     setToggle('set-fsfloat', S.settings.fsFloatBtn, (v) => { S.settings.fsFloatBtn = v; saveSettings(); applyFsFloat(); });
+    setToggle('set-fshidetb', S.settings.fsHideToolbar, (v) => { S.settings.fsHideToolbar = v; saveSettings(); applyFsHide(); });
+    setToggle('set-fshidetabs', S.settings.fsHideTabs, (v) => { S.settings.fsHideTabs = v; saveSettings(); applyFsHide(); });
     setToggle('set-invert', S.settings.invert, (v) => { S.settings.invert = v; saveSettings(); document.body.classList.toggle('invert-pages', v); });
     $('about-version').textContent = 'גרסה ' + PLUGIN_VERSION;
   }
@@ -1936,6 +1939,8 @@
     wireFind();
     wireTabs();
     wireCrop();
+    wireLibResizer();
+    wireHand();
     el['tb-crop'].onclick = () => setCrop(!V.crop);
     el['tb-print'].onclick = openPrintDialog;
     el['modal-scrim'].addEventListener('mousedown', (e) => { if (e.target === el['modal-scrim']) closeModal(); });
@@ -1985,6 +1990,31 @@
     // מקלדת
     document.addEventListener('keydown', (e) => {
       const mod = e.ctrlKey || e.metaKey;
+      const tag = document.activeElement && document.activeElement.tagName;
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tag || '') || (document.activeElement && document.activeElement.isContentEditable);
+      const modalOpen = !el['modal-scrim'].hidden;
+      if (mod && e.shiftKey && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); if (!modalOpen) openTabSearch(); return; }
+      if (mod && (e.key === 'Tab' || e.key === 'PageDown' || e.key === 'PageUp')) {
+        e.preventDefault();
+        cycleTab((e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey)) ? -1 : 1);
+        return;
+      }
+      if (mod && !e.shiftKey && (e.key === 'w' || e.key === 'W') && !modalOpen) { e.preventDefault(); closeTab(T.active); return; }
+      if (mod && !e.shiftKey && (e.key === 't' || e.key === 'T') && !modalOpen) { e.preventDefault(); addTab(); return; }
+      if (e.altKey && !mod && (e.key === 't' || e.key === 'T')) { e.preventDefault(); S.settings.fsHideTabs = !S.settings.fsHideTabs; saveSettings(); applyFsHide(); return; }
+      if (e.altKey && !mod && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); S.settings.fsHideToolbar = !S.settings.fsHideToolbar; saveSettings(); applyFsHide(); return; }
+      if (e.altKey && !mod && /^[1-9]$/.test(e.key)) { e.preventDefault(); const t = e.key === '9' ? T.tabs[T.tabs.length - 1] : T.tabs[+e.key - 1]; if (t) activateTab(t.id); return; }
+      if (!mod && !e.altKey && !typing && !modalOpen && V.pdf && (e.key === 'h' || e.key === 'H' || e.key === 'י')) { e.preventDefault(); toggleHand(); return; }
+      // חיצים: ימינה = עמוד קודם, שמאלה = עמוד הבא (בממשק מימין לשמאל). PageUp/PageDown נשארים כרגיל.
+      if (!mod && !e.altKey && !e.shiftKey && !typing && !modalOpen && V.pdf && (e.key === 'ArrowRight' || e.key === 'ArrowLeft') &&
+          !el['settings-panel'].classList.contains('open') && !V.crop) {
+        const sc = el['pages-scroll'];
+        if (sc.scrollWidth <= sc.clientWidth + 2) {
+          e.preventDefault();
+          goToPage(V.current + (e.key === 'ArrowRight' ? -1 : 1));
+          return;
+        }
+      }
       if (mod && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); if (V.pdf) openPrintDialog(); }
       else if (mod && V.pdf && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); openFind(); }
       else if (mod && V.pdf && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomStep(1); }
@@ -1999,6 +2029,123 @@
         if (!el['modal-scrim'].hidden) closeModal(); else if (el['settings-panel'].classList.contains('open')) closeSettings(); else if (V.crop) setCrop(false); else if (F.open) closeFind(); else if (isFs()) setFullscreen(false);
       }
     });
+  }
+
+  /* ═════════════════════ רוחב הספרייה (גרירה) ═════════════════════ */
+  const LIB_MIN = 200, LIB_MAX_FRAC = 0.5;
+  function applyLibWidth() {
+    const w = S.settings.libW | 0;
+    if (w > 0) el.library.style.width = Math.max(LIB_MIN, Math.min(w, Math.round(window.innerWidth * LIB_MAX_FRAC))) + 'px';
+    else el.library.style.width = '';
+  }
+  function wireLibResizer() {
+    const rz = el['lib-resizer'];
+    let start = null;
+    const sign = () => (getComputedStyle(document.documentElement).direction === 'rtl' || document.dir === 'rtl' ? -1 : 1);
+    rz.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      start = { x: e.clientX, w: el.library.getBoundingClientRect().width, s: sign() };
+      rz.setPointerCapture(e.pointerId);
+      document.body.classList.add('resizing-lib');
+      e.preventDefault();
+    });
+    rz.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      const w = start.w + start.s * (e.clientX - start.x);
+      S.settings.libW = Math.round(Math.max(LIB_MIN, Math.min(w, window.innerWidth * LIB_MAX_FRAC)));
+      applyLibWidth();
+    });
+    const end = () => { if (!start) return; start = null; document.body.classList.remove('resizing-lib'); saveSettings(); };
+    rz.addEventListener('pointerup', end);
+    rz.addEventListener('pointercancel', end);
+    rz.addEventListener('dblclick', () => { S.settings.libW = 0; applyLibWidth(); saveSettings(); });
+    rz.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault(); e.stopPropagation();
+      const cur = el.library.getBoundingClientRect().width;
+      const grow = (e.key === 'ArrowLeft') === (sign() === -1);
+      S.settings.libW = Math.round(Math.max(LIB_MIN, Math.min(cur + (grow ? 24 : -24), window.innerWidth * LIB_MAX_FRAC)));
+      applyLibWidth(); saveSettings();
+    });
+  }
+
+  /* ═════════════════════ יד (גרירת המסמך) ═════════════════════ */
+  function applyHand() {
+    const on = !!S.settings.hand;
+    el['pages-scroll'].classList.toggle('hand-mode', on);
+    el['tb-hand'].classList.toggle('active', on);
+    el['tb-hand'].setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  function toggleHand(force) {
+    S.settings.hand = typeof force === 'boolean' ? force : !S.settings.hand;
+    if (S.settings.hand && V.crop) setCrop(false);
+    applyHand(); saveSettings();
+  }
+  function wireHand() {
+    const sc = el['pages-scroll'];
+    let d = null;
+    sc.addEventListener('pointerdown', (e) => {
+      if (!S.settings.hand || V.crop || e.button !== 0 || e.pointerType === 'touch') return;
+      d = { x: e.clientX, y: e.clientY, l: sc.scrollLeft, t: sc.scrollTop };
+      sc.setPointerCapture(e.pointerId);
+      sc.classList.add('grabbing');
+      e.preventDefault();
+    });
+    sc.addEventListener('pointermove', (e) => {
+      if (!d) return;
+      sc.scrollLeft = d.l - (e.clientX - d.x);
+      sc.scrollTop = d.t - (e.clientY - d.y);
+    });
+    const end = () => { d = null; sc.classList.remove('grabbing'); };
+    sc.addEventListener('pointerup', end);
+    sc.addEventListener('pointercancel', end);
+    el['tb-hand'].onclick = () => toggleHand();
+    applyHand();
+  }
+
+  /* ═════════════════════ מסך מלא: מה להסתיר ═════════════════════ */
+  function applyFsHide() {
+    document.body.classList.toggle('fs-no-toolbar', !!S.settings.fsHideToolbar);
+    document.body.classList.toggle('fs-no-tabs', !!S.settings.fsHideTabs);
+  }
+
+  /* ═════════════════════ חיפוש בלשוניות ═════════════════════ */
+  function openTabSearch() {
+    if (!S.folders.length) return;
+    syncActiveTabPage();
+    openModal(
+      '<div class="modal-title">מעבר ללשונית</div><div class="modal-body">' +
+      '<input class="input" id="ts-input" type="text" autocomplete="off" spellcheck="false" placeholder="חיפוש בלשוניות הפתוחות…" aria-label="חיפוש בלשוניות">' +
+      '<div class="ts-list" id="ts-list" role="listbox"></div></div>');
+    const inp = $('ts-input'), list = $('ts-list');
+    let items = [], idx = 0;
+    const render = () => {
+      const q = inp.value.trim().toLowerCase();
+      items = T.tabs.map((t) => {
+        const e = t.path && S.byPath.get(t.path);
+        return { id: t.id, title: e ? e.disp : 'דף ראשי', dir: e ? e.tp : '' };
+      }).filter((x) => !q || (x.title + ' ' + x.dir).toLowerCase().includes(q));
+      if (idx >= items.length) idx = Math.max(0, items.length - 1);
+      list.innerHTML = items.length ? items.map((x, i) =>
+        '<div class="ts-row' + (i === idx ? ' kb' : '') + (x.id === T.active ? ' cur' : '') + '" role="option" data-i="' + i + '"><span class="ts-title">' + esc(x.title) + '</span><span class="ts-dir">' + esc(x.dir) + '</span></div>').join('')
+        : '<div class="empty-note">אין לשונית תואמת.</div>';
+      const k = list.querySelector('.kb'); if (k && k.scrollIntoView) k.scrollIntoView({ block: 'nearest' });
+    };
+    const go = (i) => { const x = items[i]; if (!x) return; closeModal(); activateTab(x.id); };
+    inp.addEventListener('input', () => { idx = 0; render(); });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(items.length - 1, idx + 1); render(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(0, idx - 1); render(); }
+      else if (e.key === 'Enter') { e.preventDefault(); go(idx); }
+    });
+    list.addEventListener('click', (e) => { const r = e.target.closest('[data-i]'); if (r) go(+r.getAttribute('data-i')); });
+    render();
+    inp.focus();
+  }
+  function cycleTab(dir) {
+    if (T.tabs.length < 2) return;
+    const i = T.tabs.findIndex((t) => t.id === T.active);
+    activateTab(T.tabs[(i + dir + T.tabs.length) % T.tabs.length].id);
   }
 
   /* ═════════════════════ אתחול ═════════════════════ */
@@ -2020,6 +2167,9 @@
     applyLibState();
     document.body.classList.toggle('invert-pages', !!S.settings.invert);
     applyFsFloat();
+    applyFsHide();
+    applyLibWidth();
+    applyHand();
 
     let folders = Array.isArray(foldersSaved) ? foldersSaved.filter((f) => f && f.token) : [];
     if (!folders.length && legacyFolder && legacyFolder.token) {          // מהגרסאות הקודמות: תיקייה אחת

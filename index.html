@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ספריית PDF</title>
+  <title>ספריית PDF+OCR</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -38,9 +38,10 @@
       <div class="library-meta" id="lib-meta"></div>
       <div class="library-list" id="lib-list" role="listbox"></div>
     </aside>
+    <div class="lib-resizer" id="lib-resizer" role="separator" aria-orientation="vertical" aria-label="שינוי רוחב הספרייה" title="גרירה לשינוי הרוחב · לחיצה כפולה לאיפוס" tabindex="0"></div>
 
     <!-- צופה -->
-    <section class="viewer" id="viewer" aria-label="צופה PDF">
+    <section class="viewer" id="viewer" aria-label="צופה">
 
       <div class="viewer-toolbar" id="viewer-toolbar" hidden>
         <div class="tb-group">
@@ -67,13 +68,14 @@
           <select class="zoom-select" id="zoom-select" aria-label="רמת זום"></select>
           <button class="tb-btn" id="tb-zoom-in" title="הגדלה (Ctrl ‎+‎)" aria-label="הגדלה"><span data-icon="zoom-in"></span></button>
           <button class="tb-btn" id="tb-fit-width" title="התאמה לרוחב" aria-label="התאמה לרוחב"><span data-icon="fit-width"></span></button>
-          <button class="tb-btn" id="tb-fit-page" title="התאמה לעמוד שלם" aria-label="התאמה לעמוד שלם"><span data-icon="fit-page"></span></button>
+          <button class="tb-btn" id="tb-fit-page" title="התאמה לגובה" aria-label="התאמה לגובה"><span data-icon="fit-page"></span></button>
         </div>
 
         <div class="tb-sep"></div>
 
         <div class="tb-group">
           <button class="tb-btn" id="tb-find" title="חיפוש בתוך המסמך (Ctrl+F)" aria-label="חיפוש בתוך המסמך"><span data-icon="search"></span></button>
+          <button class="tb-btn" id="tb-hand" title="יד: גרירת המסמך (H)" aria-label="יד לגרירת המסמך"><span data-icon="hand"></span></button>
           <button class="tb-btn tb-text" id="tb-crop" title="חיתוך אזור מהעמוד כתמונה" aria-label="חיתוך אזור כתמונה"><span data-icon="crop"></span><span class="btn-label">חיתוך</span></button>
           <button class="tb-btn" id="tb-print" title="הדפסה (Ctrl+P)" aria-label="הדפסה"><span data-icon="printer"></span></button>
           <span class="chip" id="crop-hint" hidden>גררו על העמוד לבחירת אזור · Esc לביטול</span>
@@ -164,6 +166,35 @@
           </div>
           <button class="switch" id="set-fsfloat" role="switch" aria-label="כפתור יציאה מרחף במסך מלא"></button>
         </div>
+        <div class="settings-row toggle-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">הסתרת סרגל הכלים במסך מלא</div>
+            <div class="settings-row-subtitle">קיצור: Alt+B</div>
+          </div>
+          <button class="switch" id="set-fshidetb" role="switch" aria-label="הסתרת סרגל הכלים במסך מלא"></button>
+        </div>
+        <div class="settings-row toggle-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">הסתרת הלשוניות במסך מלא</div>
+            <div class="settings-row-subtitle">קיצור: Alt+T</div>
+          </div>
+          <button class="switch" id="set-fshidetabs" role="switch" aria-label="הסתרת הלשוניות במסך מלא"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-card">
+      <h3 class="settings-card-title">קיצורי מקלדת</h3>
+      <div class="settings-card-body">
+        <div class="settings-row"><div class="settings-row-text">
+          <div class="settings-row-subtitle kbd-help">
+            <div><b>→ / ←</b> עמוד קודם / הבא · <b>PageUp / PageDown</b> גם כן</div>
+            <div><b>Ctrl+Tab</b> / <b>Ctrl+Shift+Tab</b> מעבר בין לשוניות · <b>Alt+1…9</b> לשונית לפי מספר</div>
+            <div><b>Ctrl+T</b> לשונית חדשה · <b>Ctrl+W</b> סגירת לשונית · <b>Ctrl+Shift+A</b> חיפוש בלשוניות</div>
+            <div><b>Ctrl+K</b> או <b>/</b> חיפוש בספרייה · <b>Ctrl+F</b> חיפוש במסמך</div>
+            <div><b>H</b> יד · <b>Ctrl+‎+ / −‎ / 0</b> זום · <b>Alt+T</b> / <b>Alt+B</b> לשוניות וסרגל כלים במסך מלא</div>
+          </div>
+        </div></div>
       </div>
     </section>
 
@@ -172,7 +203,7 @@
       <div class="settings-card-body">
         <div class="settings-row">
           <div class="settings-row-text">
-            <div class="settings-row-title">ספריית PDF</div>
+            <div class="settings-row-title">ספריית PDF+OCR</div>
             <div class="settings-row-subtitle" id="about-version"></div>
           </div>
         </div>

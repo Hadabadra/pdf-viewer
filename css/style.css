@@ -108,7 +108,8 @@ button { font-family: inherit; }
 /* ═════════ ספרייה ═════════ */
 .library {
   flex: 0 0 auto;
-  width: min(24em, 40vw);
+  width: min(19em, 36vw);
+  position: relative;
   display: flex; flex-direction: column;
   background: var(--color-surface);
   border-inline-end: 1px solid var(--color-outline-variant);
@@ -488,7 +489,7 @@ body.dark-mode.invert-pages .page canvas { filter: invert(1) hue-rotate(180deg);
   display: flex; align-items: center; gap: 0.4em; padding: 0.4em 0.75em;
   background: var(--color-surface); border-bottom: 1px solid var(--color-outline-variant); flex: 0 0 auto;
 }
-.find-field { position: relative; flex: 0 1 22em; min-width: 8em; }
+.find-field { position: relative; flex: 0 1 15em; min-width: 8em; }
 .find-count { font-size: 0.85em; font-weight: 600; color: var(--color-on-surface-variant); white-space: nowrap; min-width: 5em; direction: ltr; unicode-bidi: isolate; text-align: start; }
 .find-count.none { color: var(--color-error); }
 .textLayer .hl {
@@ -655,7 +656,8 @@ body.is-fullscreen .library { display: none; }
 body.is-fullscreen #btn-library, body.is-fullscreen #btn-settings { display: none; }
 
 /* מסך מלא: בלי שורת הלשוניות */
-body.is-fullscreen .tabbar { display: none; }
+body.is-fullscreen.fs-no-tabs .tabbar { display: none; }
+body.is-fullscreen.fs-no-toolbar .viewer-toolbar { display: none; }
 .fs-exit { display: none; }
 body.is-fullscreen.fs-float .fs-exit {
   display: inline-flex; align-items: center; justify-content: center;
@@ -678,3 +680,30 @@ body.is-fullscreen.fs-float .fs-exit {
 .home-title { display: flex; align-items: center; gap: 0.5em; font-size: 1.2em; font-weight: 700; margin-bottom: 0.8em; }
 .home-title svg { width: 1.2em; height: 1.2em; color: var(--color-primary); }
 .recent-box { margin-top: 0; }
+
+
+/* ═════════ גרירת רוחב הספרייה ═════════ */
+.lib-resizer {
+  flex: 0 0 6px; width: 6px; margin-inline-start: -3px; margin-inline-end: -3px; z-index: 5;
+  cursor: col-resize; background: transparent; touch-action: none;
+}
+.lib-resizer:hover, .lib-resizer:focus-visible, body.resizing-lib .lib-resizer { background: var(--color-primary); opacity: 0.35; outline: none; }
+body.resizing-lib { user-select: none; cursor: col-resize; }
+.workspace.no-folder .lib-resizer, body.is-fullscreen .lib-resizer { display: none; }
+@media (min-width: 701px) { body:not(.home-mode) .workspace.lib-collapsed .lib-resizer { display: none; } }
+@media (max-width: 700px) { .lib-resizer { display: none; } }
+
+/* ═════════ יד ═════════ */
+.pages-scroll.hand-mode { cursor: grab; }
+.pages-scroll.hand-mode.grabbing { cursor: grabbing; }
+.pages-scroll.hand-mode .textLayer { pointer-events: none; user-select: none; }
+
+/* ═════════ חיפוש בלשוניות + קיצורים ═════════ */
+.ts-list { max-height: 50vh; overflow-y: auto; margin-top: 0.6em; }
+.ts-row { display: flex; align-items: baseline; gap: 0.8em; padding: 0.5em 0.7em; border-radius: var(--radius-md, 8px); cursor: pointer; }
+.ts-row:hover, .ts-row.kb { background: var(--color-secondary-subtle); }
+.ts-row.cur .ts-title { font-weight: 700; }
+.ts-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-dir { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8em; color: var(--color-on-surface-variant); }
+.kbd-help > div { margin-bottom: 0.45em; line-height: 1.5; }
+.kbd-help b { font-weight: 700; color: var(--color-on-surface); direction: ltr; unicode-bidi: isolate; }
