@@ -404,9 +404,11 @@
       '<div class="stage-title">טעינת תיקייה</div>' +
       '<div class="stage-text">בחרו תיקייה אחת שמכילה את המסמכים שלכם, כולל תתי־התיקיות.<br>' +
       'הסריקה נעשית <strong>פעם אחת</strong> והרשימה נשמרת — בפעמים הבאות הכול זמין מיד.</div>' +
-      '<div class="stage-actions"><button class="btn-primary" id="st-pick"><span data-icon="folder-plus"></span>בחירת תיקייה</button></div>' +
+      '<div class="stage-actions"><button class="btn-primary" id="st-pick"><span data-icon="folder-plus"></span>בחירת תיקייה</button>' +
+      '<button class="btn-secondary" id="st-file"><span data-icon="file"></span>פתיחת קובץ</button></div>' +
       '</div>');
     $('st-pick').onclick = addFolder;
+    $('st-file').onclick = openFile;
   }
   function stageEmpty() {
     el.workspace.classList.remove('no-folder');
@@ -575,6 +577,20 @@
   }
 
   // הוספת תיקייה (גם הראשונה)
+  // פתיחת קובץ בודד (בלי לטעון תיקייה): בוחרים קובץ, והוא נפתח בלשונית
+  async function openFile() {
+    let r = await call('fs.pickUserFile', { title: 'פתיחת קובץ', extensions: ['pdf'] });
+    if (!r.success && /invalid|param|extension/i.test(String((r.error && (r.error.code + ' ' + r.error.message)) || ''))) {
+      r = await call('fs.pickUserFile', { title: 'פתיחת קובץ' });
+    }
+    if (!r.success) { if (!/cancel/i.test(String(r.error && r.error.code))) toast.err(errText(r)); return; }
+    const d = r.data || {};
+    const token = d.token || d.fileToken;
+    if (!token) return;
+    const name = d.name || String(d.path || '').split(/[\\/]/).pop() || 'מסמך';
+    await ready;
+    await openExtra(registerExtra('t:' + token, { kind: 'token', token }, name, false));
+  }
   async function addFolder() {
     const r = await call('fs.pickUserFolder', { title: 'בחירת תיקייה' });
     if (!r.success) { toast.err(errText(r)); return; }
@@ -1719,8 +1735,10 @@
       : '<div class="recent-empty">קבצים שתפתחו יופיעו כאן.</div>';
     showStage(
       '<div class="home-page"><div class="home-title"><span data-icon="home"></span>דף ראשי</div>' +
+      '<div style="margin-bottom:.8em"><button class="btn-secondary" id="home-open-file"><span data-icon="file"></span>פתיחת קובץ</button></div>' +
       '<div class="recent-box">' + box + '</div></div>', 'home');
     S.homeShown = true;
+    const hof = $('home-open-file'); if (hof) hof.onclick = openFile;
   }
 
   /* ═════════════════════ לשוניות ═════════════════════ */
@@ -1946,6 +1964,7 @@
     el['btn-library'].onclick = toggleLibrary;
     $('set-rescan').onclick = () => rescan();
     $('set-add').onclick = () => { closeSettings(); addFolder(); };
+    $('set-open-file').onclick = () => { closeSettings(); openFile(); };
     $('folder-list').addEventListener('click', (e) => {
       const rs = e.target.closest('[data-rescan]');
       if (rs) { rescan(rs.getAttribute('data-rescan')); return; }
@@ -2035,6 +2054,7 @@
         return;
       }
       if (mod && !e.shiftKey && (e.key === 'w' || e.key === 'W') && !modalOpen) { e.preventDefault(); closeTab(T.active); return; }
+      if (mod && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O') && !modalOpen) { e.preventDefault(); openFile(); return; }
       if (mod && !e.shiftKey && (e.key === 't' || e.key === 'T') && !modalOpen) { e.preventDefault(); addTab(); return; }
       if (e.altKey && !mod && (e.key === 't' || e.key === 'T')) { e.preventDefault(); S.settings.fsHideTabs = !S.settings.fsHideTabs; saveSettings(); applyFsHide(); return; }
       if (e.altKey && !mod && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); S.settings.fsHideToolbar = !S.settings.fsHideToolbar; saveSettings(); applyFsHide(); return; }
