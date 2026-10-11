@@ -10,13 +10,17 @@
 - [x] ‏CI: ענף `upgrade-998` = ולידציה בלבד, בלי פרסום ובלי Release; מיזוג ל-main = פרסום אוטומטי.
 
 ## שלב 2 — 2.8.0
-- [ ] מעבר לעמוד הנוכחי של הספר כשנפתח מהקורא (אם `currentRef` הוא מספר עמוד).
-- [ ] `ui.exportPdf` / `ui.print` לתוצאת OCR (דף טקסט נקי).
-- [ ] `app.registerShortcut` + `app.command`: ‏OCR לעמוד הנוכחי מהמקלדת.
-- [ ] "אחרונים" עם tokens יציבים של `fs.pickUserFile` במקום IndexedDB של handles.
-- [ ] `app.getLocale` + `settings.changed`: ממשק באנגלית (כמו בכלי המערכת: `i18n.js` + `lang-en.js`).
+- [x] מעבר לעמוד הנוכחי של הספר כשנפתח מהקורא (אם `currentRef` הוא מספר עמוד).
+- [x] `ui.exportPdf` / `ui.print` לתוצאת OCR (דף טקסט נקי).
+- [x] `app.registerShortcut` + `app.command`: ‏OCR לעמוד הנוכחי מהמקלדת.
+- [x] "אחרונים" עם tokens יציבים של `fs.pickUserFile` במקום IndexedDB של handles.
+- [x] `app.getLocale` + `settings.changed`: ממשק באנגלית (כמו בכלי המערכת: `i18n.js` + `lang-en.js`).
 
 ## שלב 3 — עיצוב ונוחות
-- [ ] `fonts.resolveFamilies`: גופן הקריאה של המשתמש בחלונית הטקסט.
-- [ ] `app.getConnectivity`: להסתיר הורדת שפות OCR כשאין רשת.
-- [ ] `app.getGrantedPermissions` + `plugin.permissions_changed`: הודעה ברורה כשהרשאה כובתה.
+- [x] `fonts.resolveFamilies`: גופן הקריאה של המשתמש בחלונית הטקסט.
+- [x] `app.getConnectivity`: להסתיר הורדת שפות OCR כשאין רשת.
+- [x] `app.getGrantedPermissions` + `plugin.permissions_changed`: הודעה ברורה כשהרשאה כובתה.
+
+## 3.0.0 (בוצע)
+כל שלבי 2–3 נכנסו בעיצוב החדש. מבנה: `css/app.css`, `js/{core,viewer,find,ocr,files,capture,app,icons,lang-en}.js`. ספק ספרים `pdfocr` (מיפוי id→קובץ ב-storage `libmap`). APIs של 0.9.99 (`reader.printRange`, `feedback.submitBookCorrection`) ממתינים לגרסה רשמית — האורז חוסם API חדש מ-minAppVersion.
+בדיקה מקומית: `node otzaria-plugin-validator/src/cli.js . --fail-on-warnings`.
