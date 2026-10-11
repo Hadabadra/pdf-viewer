@@ -65,7 +65,9 @@
     let pdf = null;
     if (kind === 'pdf') {
       // גופני ה-PDF הסטנדרטיים (Foxit/Liberation) — בלעדיהם גופנים לא מוטבעים מוצגים משובשים (עברית ודפוס ישן)
-      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, standardFontDataUrl: new URL('vendor/standard_fonts/', document.baseURI).href, cMapUrl: new URL('vendor/cmaps/', document.baseURI).href, cMapPacked: true }).promise;
+      pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false, enableXfa: false, standardFontDataUrl: new URL('vendor/standard_fonts/', document.baseURI).href, cMapUrl: new URL('vendor/cmaps/', document.baseURI).href, cMapPacked: true,
+        // 3.5.2: גופנים לא מוטבעים/סמליים — לא להחליף בגופן מערכת, ולצייר את צורות האותיות עצמן במקום FontFace
+        useSystemFonts: false, disableFontFace: true }).promise;
     }
     V.close();
     const gen = V.gen;

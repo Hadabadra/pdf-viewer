@@ -27,3 +27,6 @@
 
 ## 3.5.1
 * מה חדש בתוך התוסף (אודות) עודכן, עם קישורי פורום. Releases לגרסאות 3.3.3–3.5.1 נוצרו ידנית (ה-workflow יוצר Release רק מ-main).
+
+## 3.5.2
+* אותיות משובשות עדיין ב-3.5.1 (צילום משתמשת). תיקון: getDocument עם useSystemFonts:false + disableFontFace:true. אם עדיין משובש — להשוות לטעינת pdf.js בתוסף המאוחד (worker מ-blob, js/app.js ensureWorkerBlob).
