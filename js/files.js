@@ -284,6 +284,63 @@
     ul.innerHTML = '';
     folders.forEach((f) => ul.appendChild(folderNode(f, '', f.name, f.path)));
     $('folders-empty').hidden = folders.length > 0;
+    $('folder-search').hidden = folders.length === 0;
+    folderIndex = null;
+    if ($('folder-search').value.trim()) runFolderSearch();
+  };
+
+  // ── חיפוש ספר (קובץ) בתוך התיקיות שהוכנסו ───────────────────────────
+  let folderIndex = null, indexing = null, searchTimer = 0;
+  const normName = (x) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/[_\-.]+/g, ' ');
+  async function buildFolderIndex() {
+    const idx = [];
+    for (const f of folders) {
+      const queue = [{ path: '', depth: 0, cat: [f.name] }];
+      while (queue.length && idx.length < 30000) {
+        const cur = queue.shift();
+        let d;
+        try { d = await PV.call('fs.listUserFolder', { folderToken: f.folderToken, path: cur.path }); } catch (e) { continue; }
+        for (const en of (d && d.entries) || []) {
+          if (en.type === 'dir') { if (cur.depth < 8) queue.push({ path: en.path, depth: cur.depth + 1, cat: cur.cat.concat(en.name) }); continue; }
+          if (!kindOf(en.name)) continue;
+          idx.push({ f, path: en.path, name: en.name, size: en.size, where: cur.cat.join(' › '), key: normName(en.name) });
+        }
+      }
+    }
+    return idx;
+  }
+  async function runFolderSearch() {
+    const q = normName($('folder-search').value).trim();
+    const res = $('folder-results');
+    $('folders').hidden = !!q;
+    res.hidden = !q;
+    if (!q) return;
+    res.innerHTML = '';
+    if (!folderIndex) {
+      const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('סורק את התיקיות…'); res.appendChild(e);
+      if (!indexing) indexing = buildFolderIndex().then((x) => { folderIndex = x; indexing = null; });
+      await indexing;
+      if (normName($('folder-search').value).trim() !== q) return;
+      res.innerHTML = '';
+    }
+    const words = q.split(/\s+/).filter(Boolean);
+    const hits = folderIndex.filter((it) => words.every((w) => it.key.includes(w))).slice(0, 300);
+    hits.forEach((it) => {
+      const k = kindOf(it.name);
+      const li = document.createElement('li');
+      li.appendChild(makeItem(k === 'pdf' ? 'document_pdf' : k === 'image' || k === 'tiff' ? 'image' : 'document', it.name, it.where,
+        () => Fs.openFolderFile(it.f.folderToken, it.path, it.name)));
+      res.appendChild(li);
+    });
+    if (!hits.length) { const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('לא נמצאו קבצים בשם הזה'); res.appendChild(e); }
+  }
+  Fs.initFolderSearch = function () {
+    const inp = $('folder-search');
+    inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runFolderSearch, 200); });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { inp.value = ''; runFolderSearch(); }
+      if (e.key === 'Enter') { const first = $('folder-results').querySelector('.list-item'); if (first) first.click(); }
+    });
   };
   function folderNode(f, path, label, sub) {
     const li = document.createElement('li');

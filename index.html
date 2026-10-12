@@ -107,6 +107,8 @@
           <ul class="list" id="recents"></ul>
           <div class="panel-empty" id="recents-empty">עדיין לא נפתחו קבצים</div>
           <div class="section-label"><i data-icon="folder"></i><span class="grow">התיקיות שלי</span><button class="icon-btn small" id="btn-add-folder" title="הוספת תיקייה"><i data-icon="folder_add"></i></button></div>
+          <input type="search" class="folder-search" id="folder-search" placeholder="חיפוש ספר בתיקיות…" aria-label="חיפוש ספר בתיקיות" hidden>
+          <ul class="list" id="folder-results" hidden></ul>
           <ul class="list" id="folders"></ul>
           <div class="panel-empty" id="folders-empty">הוסיפו תיקייה כדי לעיין בקבצים שבה מכאן — וקבצי ה-PDF שבה יופיעו גם בחיפוש הספרייה של אוצריא</div>
         </div>
@@ -279,6 +281,10 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>4.4.5</span>
+        <ul>
+          <li>חיפוש ספר בתוך התיקיות שהוכנסו: תיבת חיפוש מתחת ל„התיקיות שלי“ מוצאת קובץ לפי שם בכל תתי־התיקיות (Enter פותח את הראשון).</li>
+        </ul>
         <span class="version-tag" data-t-skip>4.4.4</span>
         <ul>
           <li>צימוד לגשר: כפתור „צימוד לגשר“ בהגדרות (נדרש בגשר 3.x), כדי ש-OCR של Windows יעבוד.</li>

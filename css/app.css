@@ -502,3 +502,10 @@ code, .code { font-size: 0.9em; background: var(--color-surface-container); padd
   .print-root.pages-print { white-space: normal; }
   .print-root.pages-print img { display: block; width: 100%; page-break-after: always; }
 }
+
+.folder-search {
+  width: 100%; box-sizing: border-box; margin: 0.2em 0 0.4em; padding: 0.45em 0.8em;
+  border: 1px solid var(--color-outline-variant); border-radius: var(--radius-pill);
+  background: var(--color-surface-container); color: var(--color-on-surface); outline: none; font: inherit; font-size: 0.9em;
+}
+.folder-search:focus { border-color: var(--color-primary); }

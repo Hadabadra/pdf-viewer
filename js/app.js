@@ -112,6 +112,7 @@
   document.querySelectorAll('#sidebar .tab').forEach((t) => t.addEventListener('click', () => { sidebarTab.touched = true; showTab(t.dataset.tab); }));
   $('btn-refresh-tabs').addEventListener('click', Fs.refreshOpenBooks);
   $('btn-add-folder').addEventListener('click', Fs.addFolder);
+  Fs.initFolderSearch();
   PV.on('show-files', () => { setSidebar(true); sidebarTab.touched = true; showTab('files'); });
 
   // מסך פתיחה
