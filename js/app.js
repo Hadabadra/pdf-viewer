@@ -591,6 +591,46 @@
     await ready;
     await openExtra(registerExtra('t:' + token, { kind: 'token', token }, name, false));
   }
+  // חיפוש קבצים במחשב דרך הגשר (פתיחת PDF שנבחר)
+  async function searchFiles() {
+    const B = window.OcrBridge;
+    if (!B || !(await B.probe())) { toast.err('חיפוש קבצים דורש את גשר אוצריא (תורת אסתר) פועל'); return; }
+    let roots = [];
+    try { roots = await B.roots(); } catch (e) { if (e.code !== 'unpaired') { toast.err(e.message); return; } try { await B.pair(); roots = await B.roots(); } catch (e2) { toast.err('הצימוד לגשר נכשל: ' + (e2.message || e2)); return; } }
+    const sig = { stop: false }; let hits = [];
+    openModal('<div class="modal-title">חיפוש קובץ PDF במחשב</div><div class="modal-body">' +
+      '<select class="input" id="fs-root">' + roots.map((r, i) => '<option value="' + i + '">' + esc(r.name) + '</option>').join('') + '</select>' +
+      '<input class="input" id="fs-q" placeholder="חלק משם הקובץ (אפשר * ?)" />' +
+      '<label class="radio-row"><input type="checkbox" id="fs-content" /> חיפוש גם בתוך הטקסט (קבצי טקסט בלבד)</label>' +
+      '<div class="modal-meta" id="fs-info"></div><div id="fs-res" style="max-height:40vh;overflow:auto"></div></div>' +
+      '<div class="modal-actions"><button class="btn-primary" id="fs-go">חיפוש</button><button class="btn-secondary" id="fs-close">סגירה</button></div>', () => { sig.stop = true; });
+    $('fs-close').onclick = closeModal;
+    const res = $('fs-res'), info = $('fs-info');
+    const go = async () => {
+      const q = $('fs-q').value.trim(); if (!q) return;
+      sig.stop = true; await new Promise((r) => setTimeout(r, 50)); sig.stop = false; hits = []; res.innerHTML = ''; info.textContent = 'מחפש…';
+      try {
+        await B.search({ root: roots[+$('fs-root').value].path, query: q, extensions: ['pdf'], includeDirs: false, maxResults: 300 }, (h) => {
+          hits.push(h);
+          const b = document.createElement('button'); b.className = 'btn-secondary'; b.style.cssText = 'display:block;width:100%;text-align:right;margin:2px 0';
+          b.innerHTML = esc(h.name) + '<div class="modal-meta" dir="ltr" style="text-align:right">' + esc(h.path) + '</div>';
+          b.onclick = () => { closeModal(); openBridgeFile(h); };
+          res.appendChild(b); info.textContent = 'נמצאו ' + hits.length + '…';
+        }, sig);
+        if (!sig.stop) info.textContent = hits.length ? 'נמצאו ' + hits.length + ' קבצים' : 'לא נמצאו קבצים';
+      } catch (e) { info.textContent = 'שגיאה: ' + (e.message || e); }
+    };
+    $('fs-go').onclick = go; $('fs-q').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+    setTimeout(() => $('fs-q').focus(), 30);
+  }
+  async function openBridgeFile(h) {
+    try {
+      toast.msg('טוען את ' + h.name + '…');
+      const url = await window.OcrBridge.readPdf(h.path);
+      await ready;
+      await openExtra(registerExtra('f:' + h.path, { kind: 'url', url }, h.name, false));
+    } catch (e) { toast.err('הפתיחה נכשלה: ' + (e.message || e)); }
+  }
   async function addFolder() {
     const r = await call('fs.pickUserFolder', { title: 'בחירת תיקייה' });
     if (!r.success) { toast.err(errText(r)); return; }
@@ -1739,6 +1779,7 @@
       '<div class="recent-box">' + box + '</div></div>', 'home');
     S.homeShown = true;
     const hof = $('home-open-file'); if (hof) hof.onclick = openFile;
+    const hsf = $('home-search-files'); if (hsf) hsf.onclick = searchFiles;
   }
 
   /* ═════════════════════ לשוניות ═════════════════════ */
@@ -1965,6 +2006,7 @@
     $('set-rescan').onclick = () => rescan();
     $('set-add').onclick = () => { closeSettings(); addFolder(); };
     $('set-open-file').onclick = () => { closeSettings(); openFile(); };
+    $('set-search-files').onclick = () => { closeSettings(); searchFiles(); };
     $('folder-list').addEventListener('click', (e) => {
       const rs = e.target.closest('[data-rescan]');
       if (rs) { rescan(rs.getAttribute('data-rescan')); return; }
@@ -2055,6 +2097,7 @@
       }
       if (mod && !e.shiftKey && (e.key === 'w' || e.key === 'W') && !modalOpen) { e.preventDefault(); closeTab(T.active); return; }
       if (mod && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O') && !modalOpen) { e.preventDefault(); openFile(); return; }
+      if (mod && e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F') && !modalOpen) { e.preventDefault(); searchFiles(); return; }
       if (mod && !e.shiftKey && (e.key === 't' || e.key === 'T') && !modalOpen) { e.preventDefault(); addTab(); return; }
       if (e.altKey && !mod && (e.key === 't' || e.key === 'T')) { e.preventDefault(); S.settings.fsHideTabs = !S.settings.fsHideTabs; saveSettings(); applyFsHide(); return; }
       if (e.altKey && !mod && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); S.settings.fsHideToolbar = !S.settings.fsHideToolbar; saveSettings(); applyFsHide(); return; }
@@ -2319,7 +2362,8 @@
     box.textContent = 'בודק…';
     const st = await window.OcrBridge.checkOcr();
     let msg;
-    if (!st.bridge) msg = 'הגשר לא פועל או לא נמצא. הורידו אותו והפעילו אותו (הוא רץ ברקע).';
+    if (st.bridge && st.unpaired) msg = 'הגשר פועל אבל התוסף עדיין לא מצומד אליו. לחצו „צימוד לגשר“ ואשרו בחלון שייפתח במחשב.';
+    else if (!st.bridge) msg = 'הגשר לא פועל או לא נמצא. הורידו אותו והפעילו אותו (הוא רץ ברקע).';
     else if (!st.available) msg = 'הגשר פועל, אבל גרסתו ישנה או שאין בו OCR. יש להוריד את הגרסה האחרונה.';
     else if (!st.hebrew) msg = 'הגשר פועל, אבל חבילת השפה העברית ל-OCR לא מותקנת ב-Windows.';
     else msg = 'מוכן: הגשר פועל וחבילת השפה העברית מותקנת.';
@@ -2359,6 +2403,11 @@
       if (!r.success) toast.err('לא ניתן לפתוח את הקישור. אפשר להעתיק אותו ידנית: ' + (window.OcrBridge ? window.OcrBridge.DOWNLOAD_URL : ''));
     };
     $('btn-bridge-check').onclick = () => refreshBridgeStatus(true);
+    $('btn-bridge-pair').onclick = async () => {
+      try { await window.OcrBridge.probe(); toast.msg('ממתין לאישור בחלון הגשר במחשב…'); await window.OcrBridge.pair(); toast.msg('הצימוד הושלם'); }
+      catch (e) { toast.err('הצימוד נכשל: ' + (e.message || e)); }
+      refreshBridgeStatus(false);
+    };
     $('btn-ocr-test').onclick = async () => {
       if (!window.OcrEngine) { toast.err('מנוע הזיהוי לא נטען'); return; }
       ocrApplySettings();
