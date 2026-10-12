@@ -176,6 +176,7 @@
     if (mod && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === 'o') { e.preventDefault(); Fs.pick(); return; }
+      if (k === 'f' && e.shiftKey) { e.preventDefault(); PV.bridge.searchDialog(); return; }
       if (k === 'f') { e.preventDefault(); PV.find.open(); return; }
       if (k === 'e' && !inField) { e.preventDefault(); O.extractPage(); return; }
       if (k === 'r' && !inField) { e.preventDefault(); O.startRegion(); return; }
@@ -343,6 +344,7 @@
     const st = await PV.bridge.checkOcr();
     let msg;
     if (!PV.hasOtz()) msg = PV.t('פועל מחוץ לאוצריא');
+    else if (st.bridge && st.unpaired) msg = PV.t('הגשר פועל אבל התוסף לא מצומד אליו. לחצו „צימוד לגשר“ ואשרו בחלון שייפתח במחשב');
     else if (!st.bridge) msg = PV.t('הגשר לא זמין (לא מותקן, לא פועל, או שחסרה הרשאת רשת מקומית)');
     else if (!st.available || !st.hebrew) msg = PV.t('הגשר מחובר, אך חבילת OCR לעברית אינה מותקנת ב-Windows');
     else msg = PV.t('מחובר ומוכן: OCR של Windows בעברית');
@@ -351,6 +353,12 @@
     if (!PV.bridge.ocrReady() && PV.settings.ocrEngine === 'windows') $('set-ocr-engine').value = 'tesseract';
   }
   $('btn-bridge-check').addEventListener('click', refreshWinOcr);
+  $('btn-bridge-pair').addEventListener('click', async () => {
+    try { await PV.bridge.probe(); PV.toast(PV.t('ממתין לאישור בחלון הגשר במחשב…'), { long: true }); await PV.bridge.pair(); PV.toast(PV.t('הצימוד הושלם')); }
+    catch (e) { PV.error(PV.errMsg(e)); }
+    refreshWinOcr();
+  });
+  $('btn-bridge-search').addEventListener('click', () => PV.bridge.searchDialog());
   $('btn-bridge-dl').addEventListener('click', () => {
     if (PV.hasOtz()) PV.call('app.openUrl', { url: PV.BRIDGE_URL }).catch(() => PV.toast(PV.BRIDGE_URL, { long: true }));
     else window.open(PV.BRIDGE_URL, '_blank');
