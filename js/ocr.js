@@ -85,8 +85,54 @@
 
   /** OCR על קנבס/תמונה. onProgress(0..1) אופציונלי. */
   // מסמך בשני טורים: כל טור לבד (ימין ואז שמאל)
+  /** תיאור המנוע שעבד בפועל בזיהוי האחרון (מוצג בחלונית הטקסט ובהודעות) */
+  O.lastRun = null;
+  function runLabel(sec, renderMs) {
+    const r = O.lastRun;
+    if (!r) return '';
+    const f = (ms) => (ms / 1000).toFixed(1);
+    let s;
+    if (r.engine === 'oneocr') {
+      s = PV.t('מנוע Windows ישיר (oneocr)');
+      const bits = [];
+      if (renderMs != null) bits.push(PV.t('רינדור') + ' ' + f(renderMs));
+      if (r.enc != null) bits.push(PV.t('קידוד') + ' ' + f(r.enc));
+      if (r.call != null) bits.push(PV.t('גשר') + ' ' + f(r.call));
+      if (r.ms) bits.push(PV.t('טעינה') + ' ' + f(r.ms.load || 0) + ' · ' + PV.t('זיהוי') + ' ' + f(r.ms.ocr || 0) + (r.ms.ort ? ' · ORT ' + r.ms.ort : ''));
+      if (r.size) bits.push(r.size);
+      if (bits.length) s += ' (' + bits.join(' · ') + ')';
+    } else if (r.engine === 'snip-ui') s = PV.t('כלי החיתוך (דרך החלון) — המנוע הישיר לא פעל');
+    else s = 'Tesseract';
+    if (sec != null) s += ' · ' + sec.toFixed(1) + ' ' + PV.t('שנ׳');
+    return s;
+  }
+  function warnFallback() {
+    const r = O.lastRun;
+    if (r && r.engine === 'snip-ui') PV.toast(PV.t('המנוע הישיר לא עבד, הזיהוי בוצע דרך כלי החיתוך: {r}', { r: r.reason || '' }), { long: true });
+  }
+
+  /** "1-5, 8, 10-12" → [1,2,3,4,5,8,10,11,12]; null אם הפורמט שגוי, [] אם אין עמודים בתחום */
+  O.parseRange = function (str, total) {
+    const set = new Set();
+    const parts = String(str || '').replace(/\s*[-–—]\s*/g, '-').split(/[,;\s]+/).filter(Boolean);
+    for (const part of parts) {
+      const m = part.match(/^(\d+)-(\d+)$/);
+      if (m) {
+        let a = +m[1], b = +m[2];
+        if (a > b) [a, b] = [b, a];
+        for (let i = Math.max(1, a); i <= Math.min(total, b); i++) set.add(i);
+      } else if (/^\d+$/.test(part)) {
+        const n = +part;
+        if (n >= 1 && n <= total) set.add(n);
+      } else return null;
+    }
+    return [...set].sort((x, y) => x - y);
+  };
+
+  O.engineOverride = null; // 'snip' | 'tesseract' — לפעולה בודדת, בלי לשנות את ההגדרה
+  const currentEngine = () => O.engineOverride || PV.settings.ocrEngine;
   O.recognize = async function (source, onProgress) {
-    if (PV.settings.ocrCols && source instanceof HTMLCanvasElement && source.width > 200) {
+    if (currentEngine() !== 'snip' && PV.settings.ocrCols && source instanceof HTMLCanvasElement && source.width > 200) {
       const W = source.width, H = source.height, half = Math.floor(W / 2), parts = [];
       for (const [x, w] of [[half, W - half], [0, half]]) {
         const c = document.createElement('canvas');
@@ -99,13 +145,14 @@
     return O.recognizeOne(source, onProgress);
   };
   O.recognizeOne = async function (source, onProgress) {
-    if (PV.settings.ocrEngine === 'windows' && PV.bridge.ocrReady() && source instanceof HTMLCanvasElement) {
-      try {
-        const t = await PV.bridge.recognizeCanvas(source);
-        if (onProgress) onProgress(1);
-        return tidy(t);
-      } catch (e) { /* כשל בגשר — חוזרים בשקט ל-Tesseract */ }
+    if (currentEngine() === 'snip' && source instanceof HTMLCanvasElement) {
+      // כלי החיתוך של Windows דרך הגשר. בכשל — שגיאה גלויה, בלי מעבר שקט ל-Tesseract
+      const t = await PV.bridge.snipRecognizeCanvas(source);
+      O.lastRun = PV.bridge.lastRun;
+      if (onProgress) onProgress(1);
+      return tidy(t);
     }
+    O.lastRun = { engine: 'tesseract' };
     const w = await getWorker();
     progressHook = onProgress || null;
     try {
@@ -142,20 +189,24 @@
     await O.ocrPage(page);
   };
 
-  O.ocrPage = async function (n) {
+  O.ocrPage = async function (n, opts) {
     if (!needPaged() || O.busy) return;
     const page = n || V.page;
     O.busy = true;
-    PV.progress.show(PV.t('טוען את מנוע ה-OCR…'));
+    O.engineOverride = (opts && opts.engine) || null;
+    PV.progress.show(currentEngine() === 'snip' ? PV.t('מפעיל את כלי החיתוך…') : PV.t('טוען את מנוע ה-OCR…'));
     try {
+      const t0 = Date.now();
       const canvas = await V.renderOffscreen(page, Number(PV.settings.ocrQuality) || 2);
+      const renderMs = Date.now() - t0;
       PV.progress.update(PV.t('מזהה טקסט בעמוד {n}…', { n: page }), 0);
       const text = await O.recognize(canvas, (p) => PV.progress.update(null, p));
-      O.show(text, { title: PV.t('OCR — עמוד {n}', { n: page }), sub: docLabel(), source: 'ocr' });
+      O.show(text, { title: PV.t('OCR — עמוד {n}', { n: page }), sub: docLabel() + ' · ' + runLabel((Date.now() - t0) / 1000, renderMs), source: 'ocr' });
+      warnFallback();
       if (!text) PV.toast(PV.t('לא זוהה טקסט בעמוד'));
     } catch (e) {
       PV.error(PV.t('שגיאה ב-OCR: {e}', { e: PV.errMsg(e) }));
-    } finally { O.busy = false; PV.progress.hide(); }
+    } finally { O.busy = false; O.engineOverride = null; PV.progress.hide(); }
   };
 
   O.ocrCanvas = async function (canvas, label) {
@@ -163,54 +214,89 @@
     O.busy = true;
     PV.progress.show(PV.t('מזהה טקסט…'));
     try {
+      const t0 = Date.now();
       const text = await O.recognize(canvas, (p) => PV.progress.update(null, p));
-      O.show(text, { title: label || PV.t('OCR'), sub: docLabel(), source: 'ocr' });
+      O.show(text, { title: label || PV.t('OCR'), sub: docLabel() + ' · ' + runLabel((Date.now() - t0) / 1000), source: 'ocr' });
+      warnFallback();
       if (!text) PV.toast(PV.t('לא זוהה טקסט'));
     } catch (e) {
       PV.error(PV.t('שגיאה ב-OCR: {e}', { e: PV.errMsg(e) }));
     } finally { O.busy = false; PV.progress.hide(); }
   };
 
-  /** מסמך שלם: OCR לכל העמודים, או רק הטקסט המוטבע. */
-  O.processAll = async function (useOcr) {
+  /** מסמך שלם או טווח עמודים (opts.pages = [מספרי עמודים]): OCR, או רק הטקסט המוטבע. opts.engine = 'snip' | 'tesseract'. */
+  O.processAll = async function (useOcr, opts) {
     if (!needPaged() || O.busy) return;
     if (!useOcr && V.doc.kind !== 'pdf') { useOcr = true; }
-    const total = V.count;
-    if (useOcr && total > 30 && PV.hasOtz()) {
+    const engine = (opts && opts.engine) || null;
+    const list = (opts && opts.pages && opts.pages.length) ? opts.pages : Array.from({ length: V.count }, (_, i) => i + 1);
+    const total = list.length;
+    const partial = total !== V.count;
+    const viaSnip = (engine || PV.settings.ocrEngine) === 'snip';
+    const slowSnip = viaSnip && useOcr && PV.hasOtz() && !(await PV.bridge.directAvailable());
+    if (useOcr && ((total > 30) || (slowSnip && total > 3)) && PV.hasOtz()) {
       const ok = await PV.tryCall('ui.showConfirm', {
-        title: PV.t('OCR לכל המסמך'),
-        content: PV.t('במסמך {n} עמודים, והזיהוי עשוי לקחת כמה דקות. להמשיך? (אפשר לבטל בכל רגע)', { n: total }),
+        title: partial ? PV.t('OCR — טווח עמודים') : PV.t('OCR לכל המסמך'),
+        content: slowSnip
+          ? PV.t('במסמך {n} עמודים. זיהוי דרך כלי החיתוך לוקח כמה שניות לכל עמוד, כלי החיתוך ייפתח ויסגר שוב ושוב, ואסור להשתמש במחשב בזמן הריצה. להמשיך? (אפשר לבטל בכל רגע)', { n: total })
+          : PV.t('במסמך {n} עמודים, והזיהוי עשוי לקחת כמה דקות. להמשיך? (אפשר לבטל בכל רגע)', { n: total }),
       }, { confirmed: true });
       if (ok && ok.confirmed === false) return;
     }
     O.busy = true;
+    O.engineOverride = engine;
+    let streak = 0;
     let cancelled = false;
     const docAtStart = V.doc;
     PV.progress.show(PV.t('מכין…'), () => { cancelled = true; });
     if (useOcr) PV.tryCall('ui.setUnsavedChanges', { hasChanges: true, message: PV.t('זיהוי הטקסט במסמך עדיין רץ') });
     const parts = [];
-    const title = useOcr ? PV.t('OCR — כל המסמך') : PV.t('הטקסט המוטבע — כל המסמך');
+    let pre = null; // העמוד הבא מוכן מראש בזמן שהמנוע מזהה את הנוכחי
+    const t0 = Date.now();
+    const st0 = PV.bridge.stats ? { ...PV.bridge.stats } : null;
+    O.lastRun = null;
+    const baseTitle = partial ? PV.t('OCR — טווח עמודים') : PV.t('OCR — כל המסמך');
+    const title = useOcr ? baseTitle : PV.t('הטקסט המוטבע — כל המסמך');
     try {
-      for (let n = 1; n <= total; n++) {
+      for (let i = 0; i < total; i++) {
+        const n = list[i];
         if (cancelled || V.doc !== docAtStart) break;
-        PV.progress.update(PV.t('עמוד {n} מתוך {t}…', { n, t: total }), (n - 1) / total);
+        PV.progress.update(PV.t('עמוד {n} ({i}/{t})…', { n, i: i + 1, t: total }), i / total);
         let text = '';
-        if (V.doc.kind === 'pdf') text = await V.getPageText(n);
-        if (useOcr && !text) {
-          const canvas = await V.renderOffscreen(n, Number(PV.settings.ocrQuality) || 2);
-          text = await O.recognize(canvas, (p) => PV.progress.update(null, (n - 1 + p) / total));
+        // OCR מפורש תמיד מזהה את העמוד; השכבה המוטבעת רק ב„חילוץ טקסט“
+        if (!useOcr && V.doc.kind === 'pdf') text = await V.getPageText(n);
+        if (useOcr) {
+          const q = Number(PV.settings.ocrQuality) || 2;
+          let canvas = (pre && pre.n === n) ? await pre.p : null;
+          if (!canvas) canvas = await V.renderOffscreen(n, q);
+          pre = null;
+          if (i + 1 < total && !cancelled) { const nx = list[i + 1]; pre = { n: nx, p: V.renderOffscreen(nx, q).catch(() => null) }; }
+          try {
+            text = await O.recognize(canvas, (p) => PV.progress.update(null, (i + p) / total));
+            streak = 0;
+          } catch (e) {
+            // עמוד שנכשל לא עוצר את כל הריצה; שלושה כשלונות רצופים כן עוצרים
+            if (!viaSnip || ++streak >= 3) throw e;
+            text = PV.t('(שגיאה בזיהוי: {e})', { e: PV.errMsg(e) });
+          }
           canvas.width = 0; canvas.height = 0;
         }
         parts.push('— ' + PV.t('עמוד {n}', { n }) + ' —\n' + (text || PV.t('(אין טקסט)')));
-        if (n % 3 === 0 || n === total) O.show(parts.join('\n\n'), { title, sub: docLabel() + ' · ' + n + '/' + total, source: useOcr ? 'ocr' : 'embedded', quiet: true });
+        if ((i + 1) % 3 === 0 || i + 1 === total) O.show(parts.join('\n\n'), { title, sub: docLabel() + ' · ' + (i + 1) + '/' + total, source: useOcr ? 'ocr' : 'embedded', quiet: true });
       }
-      O.show(parts.join('\n\n'), { title, sub: docLabel(), source: useOcr ? 'ocr' : 'embedded' });
+      const secPerPage = parts.length ? (Date.now() - t0) / 1000 / parts.length : null;
+      O.show(parts.join('\n\n'), { title, sub: docLabel() + (useOcr && O.lastRun ? ' · ' + runLabel(secPerPage) + ' / ' + PV.t('עמוד') : ''), source: useOcr ? 'ocr' : 'embedded' });
       if (cancelled) PV.toast(PV.t('הופסק אחרי {n} עמודים', { n: parts.length }));
-      else PV.toast(PV.t('הושלם: {n} עמודים', { n: parts.length }));
+      else {
+        PV.toast(PV.t('הושלם: {n} עמודים', { n: parts.length }) + (useOcr && O.lastRun ? ' · ' + runLabel(secPerPage) : ''));
+        const fb = st0 ? PV.bridge.stats.fb - st0.fb : 0;
+        if (fb > 0) PV.toast(PV.t('{n} עמודים עברו דרך כלי החיתוך', { n: fb }) + ': ' + (O.lastRun && O.lastRun.reason || ''), { long: true });
+      }
     } catch (e) {
       PV.error(PV.t('שגיאה: {e}', { e: PV.errMsg(e) }));
     } finally {
       O.busy = false;
+      O.engineOverride = null;
       PV.progress.hide();
       PV.tryCall('ui.setUnsavedChanges', { hasChanges: false });
     }

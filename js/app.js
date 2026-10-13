@@ -87,6 +87,9 @@
       case 'ocr-page': return O.ocrPage();
       case 'ocr-region': return O.startRegion();
       case 'ocr-all': return O.processAll(true);
+      case 'ocr-range': return openRange();
+      case 'snip-page': return O.ocrPage(undefined, { engine: 'snip' });
+      case 'snip-all': return O.processAll(true, { engine: 'snip' });
       case 'extract-all': return O.processAll(false);
       case 'paste': return PV.capture.pasteFromClipboard();
       case 'capture': return PV.capture.start();
@@ -257,9 +260,28 @@
   function showOverlayTab(name) {
     document.querySelectorAll('[data-otab]').forEach((t) => t.classList.toggle('active', t.dataset.otab === name));
     document.querySelectorAll('[data-opanel]').forEach((p) => { p.hidden = p.dataset.opanel !== name; });
-    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות' }[name]);
+    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות', range: 'OCR לטווח עמודים' }[name]);
+    const tabsBar = document.querySelector('#overlay .tabs');
+    if (tabsBar) tabsBar.hidden = name === 'range';
     if (name === 'ocr') renderLangs();
   }
+  // OCR לטווח עמודים
+  function openRange() {
+    if (!V.isPaged()) { PV.toast(PV.t('יש לפתוח PDF או תמונה')); return; }
+    $('range-total').textContent = PV.t('במסמך {n} עמודים · למשל: 1-5, 8, 10-12', { n: V.count });
+    $('range-input').value = String(V.page);
+    openOverlay('range');
+    setTimeout(() => { $('range-input').focus(); $('range-input').select(); }, 50);
+  }
+  function startRange() {
+    const pages = O.parseRange($('range-input').value, V.count);
+    if (!pages || !pages.length) { PV.toast(PV.t('טווח העמודים אינו תקין (המסמך כולל {n} עמודים)', { n: V.count })); return; }
+    const engine = $('range-engine').value || null;
+    closeOverlay();
+    O.processAll(true, { pages, engine });
+  }
+  $('range-go').addEventListener('click', startRange);
+  $('range-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') startRange(); });
   $('overlay-scrim').addEventListener('click', closeOverlay);
   $('overlay-close').addEventListener('click', closeOverlay);
   document.querySelectorAll('[data-otab]').forEach((t) => t.addEventListener('click', () => showOverlayTab(t.dataset.otab)));
@@ -338,28 +360,45 @@
     else window.open(url, '_blank');
   });
 
-  // OCR של Windows דרך הגשר
-  async function refreshWinOcr() {
-    const box = $('win-ocr-status');
+  // כלי החיתוך של Windows דרך הגשר (3.1.0+)
+  async function refreshSnip(full) {
+    const box = $('snip-status');
     box.textContent = PV.t('בודק חיבור לגשר…');
-    const st = await PV.bridge.checkOcr();
     let msg;
-    if (!PV.hasOtz()) msg = PV.t('פועל מחוץ לאוצריא');
-    else if (st.bridge && st.unpaired) msg = PV.t('הגשר פועל אבל התוסף לא מצומד אליו. לחצו „צימוד לגשר“ ואשרו בחלון שייפתח במחשב');
-    else if (!st.bridge) msg = PV.t('הגשר לא זמין (לא מותקן, לא פועל, או שחסרה הרשאת רשת מקומית)');
-    else if (!st.available || !st.hebrew) msg = PV.t('הגשר מחובר, אך חבילת OCR לעברית אינה מותקנת ב-Windows');
-    else msg = PV.t('מחובר ומוכן: OCR של Windows בעברית');
+    try {
+      if (!PV.hasOtz()) msg = PV.t('פועל מחוץ לאוצריא');
+      else {
+        const info = await PV.bridge.probe();
+        if (!info) msg = PV.t('הגשר לא זמין (לא מותקן, לא פועל, או שחסרה הרשאת רשת מקומית)');
+        else if (PV.bridge.versionLt(info.version, PV.BRIDGE_MIN)) msg = PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה. הורידו את הגרסה החדשה.', { v: info.version, m: PV.BRIDGE_MIN });
+        else if (!full) msg = PV.t('הגשר {v} פועל. לחצו "בדיקת חיבור" כדי לאשר את החיבור ולבדוק את כלי החיתוך.', { v: info.version });
+        else {
+          const st = await PV.bridge.snipStatus();
+          if (await PV.bridge.directAvailable()) msg = PV.t('מחובר ומוכן: מנוע הזיהוי המקומי של Windows (ישיר, בלי לפתוח את כלי החיתוך)');
+          else if (st.installed === false) msg = PV.t('כלי החיתוך (Snipping Tool) אינו מותקן ב-Windows');
+          else if (st.running) msg = PV.t('כלי החיתוך פתוח כרגע — סגרו אותו לפני ההפעלה');
+          else msg = PV.t('מחובר ומוכן: כלי החיתוך של Windows') + (st.scriptOverride ? PV.t(' (סקריפט מותאם)') : '');
+        }
+      }
+    } catch (e) { msg = PV.t('שגיאה: {e}', { e: PV.errMsg(e) }); }
     box.textContent = msg;
-    $('opt-ocr-windows').disabled = !PV.bridge.ocrReady();
-    if (!PV.bridge.ocrReady() && PV.settings.ocrEngine === 'windows') $('set-ocr-engine').value = 'tesseract';
   }
-  $('btn-bridge-check').addEventListener('click', refreshWinOcr);
-  $('btn-bridge-pair').addEventListener('click', async () => {
-    try { await PV.bridge.probe(); PV.toast(PV.t('ממתין לאישור בחלון הגשר במחשב…'), { long: true }); await PV.bridge.pair(); PV.toast(PV.t('הצימוד הושלם')); }
-    catch (e) { PV.error(PV.errMsg(e)); }
-    refreshWinOcr();
-  });
+  $('btn-bridge-check').addEventListener('click', () => refreshSnip(true));
   $('btn-bridge-search').addEventListener('click', () => PV.bridge.searchDialog());
+  $('btn-snip-test').addEventListener('click', () => {
+    if (!V.isPaged()) { PV.toast(PV.t('יש לפתוח PDF או תמונה')); return; }
+    closeOverlay();
+    O.ocrPage(undefined, { engine: 'snip' });
+  });
+  $('btn-snip-dump').addEventListener('click', async () => {
+    const box = $('snip-status');
+    box.textContent = PV.t('קורא את חלון כלי החיתוך…');
+    try {
+      if (!PV.hasOtz() || !(await PV.bridge.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
+      const d = await PV.bridge.snipDump();
+      box.textContent = (d.window || '') + '\n' + (d.items || []).join('\n');
+    } catch (e) { box.textContent = PV.t('שגיאה: {e}', { e: PV.errMsg(e) }); }
+  });
   $('btn-bridge-dl').addEventListener('click', () => {
     if (PV.hasOtz()) PV.call('app.openUrl', { url: PV.BRIDGE_URL }).catch(() => PV.toast(PV.BRIDGE_URL, { long: true }));
     else window.open(PV.BRIDGE_URL, '_blank');
@@ -513,6 +552,7 @@
     const lang = p.app && p.app.language;
     if (lang && lang !== 'he') PV.setLanguage(lang);
     await PV.loadSettings();
+    if (PV.settings.ocrEngine === 'windows') PV.settings.ocrEngine = 'tesseract'; // OCR של Windows הוסר (אין עברית)
     bindSetting('set-zoom', 'zoom');
     bindSetting('set-resume', 'resume');
     bindSetting('set-night-auto', 'nightAuto');
@@ -521,7 +561,7 @@
     bindSetting('set-ocr-lines', 'ocrLines');
     bindSetting('set-ocr-engine', 'ocrEngine');
     bindSetting('set-ocr-cols', 'ocrCols');
-    refreshWinOcr();
+    refreshSnip(false);
     bindStoreSwitch('set-library', 'showInLibrary', (on) => { if (on) Fs.syncLibrary({ verbose: true }); else $('library-sync-status').textContent = PV.t('הקבצים הוסתרו מחיפוש הספרייה'); });
     bindStoreSwitch('set-tb-open', 'tbOpen');
     bindStoreSwitch('set-tb-extract', 'tbExtract');

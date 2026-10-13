@@ -1,5 +1,6 @@
-/* צופה PDF+OCR — לקוח לגשר אוצריא (שירות Windows מקומי): OCR של Windows (Windows.Media.Ocr).
-   בלי הגשר, בלי חבילת השפה או בכל כשל — הצופה חוזר בשקט למנוע Tesseract המובנה. */
+/* צופה PDF+OCR — לקוח לגשר אוצריא (שירות Windows מקומי).
+   מגרסה 3.6.0: צימוד לגשר (נדרש מגשר 3.0), וזיהוי טקסט דרך כלי החיתוך של Windows (גשר 3.1.0 ומעלה).
+   ה-OCR של Windows (Windows.Media.Ocr) הוסר: אין לו עברית. */
 (function () {
   'use strict';
   const PV = window.PV;
@@ -7,9 +8,9 @@
   const PORTS = [47917, 47918, 47919, 47920, 47921];
   const HOST = 'http://127.0.0.1:';
   PV.BRIDGE_URL = 'https://github.com/e0548433917-gif/otzaria-system-tools/releases/latest';
+  PV.BRIDGE_MIN = '3.1.0';
 
-  const B = (PV.bridge = { port: null, info: null, ocr: null, token: null });
-  const TOKEN_KEY = 'bridgeToken';
+  const B = (PV.bridge = { port: null, info: null });
 
   function isIter(r) { return r && typeof r[Symbol.asyncIterator] === 'function'; }
 
@@ -24,14 +25,25 @@
     throw new Error('unexpected network.fetchStream result');
   }
 
+  // ── צימוד לגשר (3.0): מפתח אקראי שהגשר נותן אחרי אישור המשתמש בחלון שנפתח במחשב ──
+  const TOKEN_KEY = 'bridgeToken';
+  let token = null, tokenLoaded = false, pairing = null;
+  async function loadToken() {
+    if (tokenLoaded) return token;
+    tokenLoaded = true;
+    const v = await PV.store.get(TOKEN_KEY, null);
+    token = typeof v === 'string' && v.length >= 32 ? v : null;
+    return token;
+  }
+  async function saveToken(t) { token = t; await PV.store.set(TOKEN_KEY, t); }
+
   async function request(port, path, body, timeoutMs, method) {
     const p = {
       url: HOST + port + path,
       method: method || 'POST',
-      headers: { 'X-Otzaria-Bridge': '1' },
+      headers: token ? { 'X-Otzaria-Bridge': '1', 'X-Otzaria-Token': token } : { 'X-Otzaria-Bridge': '1' },
       timeoutMs: Math.min(Math.max(timeoutMs || 30000, 1000), 120000),
     };
-    if (B.token && path !== '/health') p.headers['X-Otzaria-Token'] = B.token;
     if (p.method === 'POST') {
       p.headers['Content-Type'] = 'application/json; charset=utf-8';
       p.body = JSON.stringify(body || {});
@@ -52,10 +64,11 @@
     throw e;
   }
 
-  /** סריקת הפורטים ב-GET /health. מחזיר את מידע הגשר או null. */
+  /** סריקת הפורטים ב-GET /health (פתוח בלי צימוד). מחזיר את מידע הגשר או null. */
   B.probe = async function () {
-    B.port = null; B.info = null; B.ocr = null;
+    B.port = null; B.info = null; B.direct = null;
     if (!PV.hasOtz()) return null;
+    await loadToken();
     const found = await Promise.all(PORTS.map((port) =>
       request(port, '/health', null, 2500, 'GET')
         .then((d) => (d && d.name === 'otzaria-bridge' ? { port, info: d } : null))
@@ -66,49 +79,105 @@
     return B.info;
   };
 
-  async function loadToken() {
-    if (B.token) return B.token;
-    try {
-      const r = await window.Otzaria.call('storage.get', { key: TOKEN_KEY });
-      const v = r && r.success !== false ? (Object.prototype.hasOwnProperty.call(r, 'data') ? r.data : r) : null;
-      const t = v && typeof v === 'object' ? v.value : v;
-      if (typeof t === 'string' && t.length >= 32) B.token = t;
-    } catch (e) { /* אין אחסון */ }
-    return B.token;
-  }
-
-  /** צימוד לגשר 3.x (חלון אישור במחשב). חייב להיות ביוזמת המשתמשת. */
+  /** בקשת צימוד: הגשר מציג חלון אישור במחשב (עד שתי דקות). */
   B.pair = async function () {
-    if (!B.port) await B.probe();
-    if (!B.port) throw new Error(PV.t('הגשר לא נמצא'));
-    const d = await request(B.port, '/pair/request', { client: 'pdf-viewer-old', name: 'צופה PDF+OCR' }, 120000);
-    if (!d || !d.token) throw new Error(PV.t('הצימוד נדחה'));
-    B.token = d.token;
-    try { await window.Otzaria.call('storage.set', { key: TOKEN_KEY, value: d.token }); } catch (e) { /* יתבקש שוב בהפעלה הבאה */ }
-    return true;
+    if (pairing) return pairing;
+    pairing = (async () => {
+      PV.toast(PV.t('אשרו את החיבור בחלון "גשר אוצריא — בקשת גישה" שנפתח במחשב'), { long: true });
+      const d = await request(B.port, '/pair/request', { client: 'pdf-viewer', name: 'צופה PDF+OCR' }, 130000);
+      await saveToken(d.token);
+    })();
+    try { await pairing; } finally { pairing = null; }
   };
 
-  /** noPair — בלי לפתוח בקשת צימוד (בדיקות רקע) */
-  B.call = async function (path, body, timeoutMs, noPair) {
+  B.call = async function (path, body, timeoutMs) {
     if (!B.port) throw new Error('bridge not connected');
     await loadToken();
     try { return await request(B.port, path, body, timeoutMs); }
     catch (e) {
-      if (e.code !== 'unpaired' || noPair) throw e;
+      if (!e || e.code !== 'unpaired') throw e;
       await B.pair();
       return request(B.port, path, body, timeoutMs);
     }
   };
 
+  /** האם גרסת הגשר a נמוכה מ-b (למשל "3.0.0" < "3.1.0") */
+  B.versionLt = function (a, b) {
+    const x = String(a || '0').split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); }
+    return false;
+  };
+
+  // ── כלי החיתוך (גשר 3.1.0+) ───────────────────────────────────────────
+  /** { installed: bool|null, running: bool, scriptOverride: bool } */
+  B.snipStatus = () => B.call('/snip/status', {}, 15000);
+  /** רשימת הרכיבים בחלון כלי החיתוך הפתוח (לאבחון שמות כפתורים) */
+  B.snipDump = () => B.call('/snip/dump', {}, 30000);
+
+  /** מזהה טקסט בקנבס. קודם המנוע הישיר (גשר 3.2+); אם אינו זמין — כלי החיתוך דרך החלון.
+   *  B.lastRun מתעד באיזה מנוע זה בוצע בפועל ({engine:'oneocr'|'snip-ui', reason?, ms?}). */
+  B.lastRun = null;
+  B.snipRecognizeCanvas = async function (canvas) {
+    if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
+    if (B.versionLt(B.info && B.info.version, PV.BRIDGE_MIN)) {
+      throw new Error(PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה', { v: (B.info && B.info.version) || '?', m: PV.BRIDGE_MIN }));
+    }
+    let reason = '';
+    if (B.direct !== false) {
+      try {
+        // JPEG איכותי: קידוד מהיר בהרבה מ-PNG (לחזרה ל-PNG: 'image/png' בלי פרמטר איכות)
+        const te = Date.now();
+        const img = canvas.toDataURL('image/jpeg', 0.95);
+        const enc = Date.now() - te;
+        const tc = Date.now();
+        const d = await B.call('/oneocr/recognize', { image: img }, 120000);
+        B.direct = true;
+        B.lastRun = { engine: 'oneocr', ms: (d && d.ms) || null, enc, call: Date.now() - tc, size: canvas.width + '×' + canvas.height };
+        if (d && d.ms) { B.stats.n++; B.stats.ocr += d.ms.ocr || 0; B.stats.decode += d.ms.decode || 0; }
+        return String((d && d.text) || '');
+      } catch (e) {
+        if (!e || (e.code !== 'unsupported' && e.code !== 'not_found' && e.code !== 'ocr_failed')) throw e;
+        reason = PV.errMsg(e);
+        if (e.code !== 'ocr_failed') { B.direct = false; B.directReason = reason; } // כשל חד-פעמי לא מכבה את המנוע
+      }
+    } else reason = B.directReason || PV.t('לא זמין');
+    B.stats.fb++;
+    B.lastRun = { engine: 'snip-ui', reason };
+    const d = await B.call('/snip/ocr', { image: canvas.toDataURL('image/png'), timeoutSec: 30 }, 120000);
+    return String((d && d.text) || '');
+  };
+
+  /** האם המנוע הישיר זמין (גשר 3.2+ וקבצי כלי החיתוך נמצאו). המצב נשמר עד הבדיקה הבאה של הגשר. */
+  B.direct = null;
+  B.directReason = '';
+  B.stats = { n: 0, ocr: 0, decode: 0, fb: 0 }; // זמני המנוע הישיר (מילישניות) וספירת נפילות לכלי החיתוך
+  B.directAvailable = async function () {
+    if (B.direct !== null) return B.direct;
+    try {
+      if (!B.port && !(await B.probe())) return false;
+      const s = await B.call('/oneocr/status', {}, 30000);
+      B.direct = !!(s && s.available);
+      B.directReason = (s && s.error) || '';
+    } catch (e) { B.direct = false; B.directReason = PV.errMsg(e); }
+    return B.direct;
+  };
+
+  /** מבנה מלא: שורות, מילים וקואורדינטות בפיקסלים של הקנבס (לשכבת טקסט מדויקת). זורק שגיאה אם המנוע הישיר לא זמין. */
+  B.ocrLayoutCanvas = async function (canvas) {
+    if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
+    return B.call('/oneocr/recognize', { image: canvas.toDataURL('image/png') }, 120000);
+  };
+
+  // ── חיפוש קובץ לפי שם במחשב (מ-3.6.0) ──
   /** חיפוש קבצים זורם (NDJSON). onHit לכל תוצאה; signal.stop = true לעצירה. */
   B.search = async function (params, onHit, signal) {
-    if (!B.port) throw new Error('bridge not connected');
+    if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
     await loadToken();
     let retried = false;
     for (;;) {
       const p = { url: HOST + B.port + '/fs/search', method: 'POST', timeoutMs: 120000,
         headers: { 'X-Otzaria-Bridge': '1', 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify(params) };
-      if (B.token) p.headers['X-Otzaria-Token'] = B.token;
+      if (token) p.headers['X-Otzaria-Token'] = token;
       let buf = '', err = null;
       const feed = (line) => {
         line = line.trim(); if (!line) return;
@@ -193,42 +262,5 @@
     };
     go.onclick = run; q.onkeydown = (e) => { if (e.key === 'Enter') run(); };
     setTimeout(() => q.focus(), 30);
-  };
-
-  /** מצב מנוע ה-OCR של Windows: { bridge, available, hebrew, maxImageDimension } */
-  B.checkOcr = async function () {
-    const st = { unpaired: false, bridge: false, available: false, hebrew: false, maxImageDimension: 10000 };
-    try {
-      if (await B.probe()) {
-        st.bridge = true;
-        await loadToken();
-        const d = await B.call('/ocr/status', {}, 8000, true);
-        st.available = !!d.available;
-        st.hebrew = !!d.hebrew;
-        if (d.maxImageDimension) st.maxImageDimension = d.maxImageDimension;
-      }
-    } catch (e) { if (e && e.code === 'unpaired') st.unpaired = true; /* אחרת: גשר ישן בלי /ocr */ }
-    B.ocr = st;
-    return st;
-  };
-
-  /** האם מנוע Windows מוכן לשימוש (גשר + חבילת עברית) */
-  B.ocrReady = () => !!(B.ocr && B.ocr.bridge && B.ocr.available && B.ocr.hebrew);
-
-  /** OCR של קנבס דרך הגשר. מחזיר טקסט, או זורק שגיאה (הקורא חוזר ל-Tesseract). */
-  B.recognizeCanvas = async function (canvas) {
-    const max = (B.ocr && B.ocr.maxImageDimension) || 10000;
-    let c = canvas;
-    const big = Math.max(canvas.width, canvas.height);
-    if (big > max) {
-      const k = max / big;
-      c = document.createElement('canvas');
-      c.width = Math.max(1, Math.floor(canvas.width * k));
-      c.height = Math.max(1, Math.floor(canvas.height * k));
-      c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
-    }
-    const data = await B.call('/ocr/recognize', { image: c.toDataURL('image/png'), lang: 'he-IL' }, 120000);
-    const lines = Array.isArray(data.lines) ? data.lines.map((l) => l.text) : null;
-    return lines ? lines.join('\n') : String(data.text || '');
   };
 })();

@@ -60,7 +60,12 @@
           <button class="menu-item" data-act="ocr-page"><i data-icon="scan_text"></i><span class="mi-text">זיהוי טקסט (OCR) לעמוד הנוכחי</span></button>
           <button class="menu-item" data-act="extract-page"><i data-icon="document_text"></i><span class="mi-text">חלץ טקסט מוטבע מהעמוד</span><span class="mi-kbd" data-t-skip>Ctrl+E</span></button>
           <button class="menu-item" data-act="ocr-all"><i data-icon="text_bullet_list_square"></i><span class="mi-text">OCR לכל המסמך</span></button>
+          <button class="menu-item" data-act="ocr-range"><i data-icon="text_bullet_list_square"></i><span class="mi-text">OCR לטווח עמודים…</span></button>
           <button class="menu-item" data-act="extract-all"><i data-icon="document"></i><span class="mi-text">כל הטקסט המוטבע במסמך</span></button>
+          <div class="menu-sep"></div>
+          <div class="menu-label">כלי החיתוך של Windows</div>
+          <button class="menu-item" data-act="snip-page"><i data-icon="cut"></i><span class="mi-text">OCR של Windows — העמוד הנוכחי</span></button>
+          <button class="menu-item" data-act="snip-all"><i data-icon="cut"></i><span class="mi-text">OCR של Windows — כל המסמך</span></button>
           <div class="menu-sep"></div>
           <div class="menu-label">ממקור חיצוני</div>
           <button class="menu-item" data-act="paste"><i data-icon="clipboard_paste"></i><span class="mi-text">הדבק גזרת מסך וחלץ</span><span class="mi-kbd" data-t-skip>Ctrl+V</span></button>
@@ -176,6 +181,19 @@
     <button class="tab" data-otab="about"><i data-icon="info"></i><span>אודות</span></button>
   </div>
   <div class="overlay-body">
+    <section data-opanel="range" hidden>
+      <div class="card">
+        <div class="setting-row"><div class="sr-text"><b>טווח עמודים</b><span id="range-total">למשל: 1-5, 8, 10-12</span></div>
+          <input class="select" id="range-input" type="text" dir="ltr" placeholder="1-5, 8, 10-12" style="min-width:11rem"></div>
+        <div class="setting-row"><div class="sr-text"><b>מנוע</b><span>ברירת המחדל לפי ההגדרות</span></div>
+          <select class="select" id="range-engine">
+            <option value="">לפי ההגדרות</option>
+            <option value="snip">מנוע Windows (דרך הגשר)</option>
+            <option value="tesseract">Tesseract</option>
+          </select></div>
+        <div class="setting-row"><span></span><button class="btn filled" id="range-go">התחל זיהוי</button></div>
+      </div>
+    </section>
     <section data-opanel="settings">
       <div class="card">
         <h3><i data-icon="document_pdf"></i>תצוגה</h3>
@@ -221,10 +239,10 @@
         <p class="muted">Tesseract.js מובנה בתוסף, כולל עברית — עובד בלי אינטרנט. לזיהוי טוב יותר, המסמך מעובד ברזולוציה גבוהה מזו שעל המסך.</p>
         <div class="setting-row"><div class="sr-text"><b>מסמך בשני טורים</b><span>מזהה כל טור בנפרד (ימין ואז שמאל), כדי שהטורים לא יתערבבו</span></div>
           <label class="switch"><input type="checkbox" id="set-ocr-cols"><span class="track"></span></label></div>
-        <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע הזיהוי</b><span>Tesseract המובנה, או OCR של Windows דרך גשר אוצריא</span></div>
+        <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע הזיהוי</b><span>Tesseract המובנה, או כלי החיתוך של Windows דרך גשר אוצריא</span></div>
           <select class="select" id="set-ocr-engine">
             <option value="tesseract">Tesseract (מובנה)</option>
-            <option value="windows" id="opt-ocr-windows">OCR של Windows (דרך הגשר)</option>
+            <option value="snip" id="opt-ocr-snip">מנוע Windows (דרך הגשר)</option>
           </select></div>
         <div class="setting-row"><div class="sr-text"><b>איכות הזיהוי</b><span>רזולוציה גבוהה = מדויק יותר ואיטי יותר</span></div>
           <select class="select" id="set-ocr-quality">
@@ -235,23 +253,23 @@
         <div class="setting-row"><div class="sr-text"><b>שמירת שורות</b><span>להשאיר את חלוקת השורות של המקור</span></div>
           <label class="switch"><input type="checkbox" id="set-ocr-lines"><span class="track"></span></label></div>
       </div>
-      <div class="card" id="win-ocr-card">
-        <h3><i data-icon="arrow_clockwise"></i>OCR של Windows (דרך הגשר)</h3>
-        <p class="muted">מנוע הזיהוי המובנה של Windows פועל דרך "גשר אוצריא" — שירות קטן שמותקן במחשב. הוא אינו חלק מהתוסף, ולכן צריך להוריד אותו פעם אחת.</p>
+      <div class="card" id="snip-card">
+        <h3><i data-icon="cut"></i>מנוע Windows (דרך הגשר)</h3>
+        <p class="muted">מזהה טקסט במנוע ה-OCR של Windows (אותו מנוע של "פעולות טקסט" בכלי החיתוך), ישירות דרך הגשר ובלי לפתוח את כלי החיתוך — גם בעברית. אם המנוע הישיר אינו זמין, הגשר חוזר לשיטה הישנה: פתיחת כל עמוד בכלי החיתוך (איטי יותר, ואסור להשתמש במחשב בזמן הריצה). בסוף כל זיהוי מוצג איזה מנוע עבד בפועל.</p>
         <ol class="muted">
-          <li>לחצו "הורדת הגשר", והורידו את הקובץ <code data-t-skip>OtzariaBridge.exe</code> מעמוד הגרסה האחרונה.</li>
-          <li>הפעילו אותו (הוא רץ ברקע ומופיע במגש המערכת). אם Windows מזהיר — "מידע נוסף" ← "הפעל בכל זאת".</li>
-          <li>ב-Windows: הגדרות ← זמן ושפה ← שפה ← עברית ← אפשרויות שפה ← "זיהוי טקסט" (OCR) ← התקנה.</li>
-          <li>חזרו לכאן ולחצו "בדיקת חיבור", ואז בחרו "OCR של Windows" במנוע הזיהוי.</li>
+          <li>הורידו והפעילו את גשר אוצריא בגרסה 3.1.0 ומעלה ("הורדת הגשר").</li>
+          <li>לחצו "בדיקת חיבור". בפעם הראשונה ייפתח במחשב חלון "בקשת גישה" — אשרו אותו.</li>
+          <li>בתפריט הזיהוי בחרו "OCR של Windows" — לעמוד הנוכחי או לכל המסמך.</li>
         </ol>
-        <div class="diag" id="win-ocr-status" data-t-skip>טרם נבדק</div>
+        <div class="diag" id="snip-status" data-t-skip>טרם נבדק</div>
         <div class="welcome-actions" style="justify-content:flex-start">
           <button class="btn compact" id="btn-bridge-dl"><i data-icon="open"></i><span>הורדת הגשר</span></button>
           <button class="btn compact tonal" id="btn-bridge-check"><i data-icon="arrow_clockwise"></i><span>בדיקת חיבור</span></button>
-          <button class="btn compact tonal" id="btn-bridge-pair"><i data-icon="arrow_clockwise"></i><span>צימוד לגשר</span></button>
           <button class="btn compact tonal" id="btn-bridge-search"><i data-icon="folder_open"></i><span>חיפוש קובץ במחשב (Ctrl+Shift+F)</span></button>
+          <button class="btn compact" id="btn-snip-test"><i data-icon="cut"></i><span>נסו על העמוד הנוכחי</span></button>
+          <button class="btn compact" id="btn-snip-dump"><i data-icon="warning"></i><span>אבחון חלון כלי החיתוך</span></button>
         </div>
-        <p class="muted">בלי הגשר או בלי חבילת השפה, הצופה ממשיך להשתמש ב-Tesseract המובנה.</p>
+        <p class="muted">נדרש Windows 11 עם כלי החיתוך. אם כלי החיתוך פתוח, סגרו אותו לפני ההפעלה. "אבחון" דורש כלי החיתוך פתוח עם תמונה, ומציג את שמות הכפתורים בו (לתיקון אם Microsoft שינתה אותם).</p>
       </div>
       <div class="card">
         <h3><i data-icon="add"></i>שפות</h3>
@@ -281,6 +299,13 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>4.5.0</span>
+        <ul>
+          <li>מנוע Windows ישיר (oneocr) דרך גשר אוצריא: כשנייה לעמוד, בלי לפתוח את כלי החיתוך. אם המנוע הישיר לא זמין — זיהוי דרך כלי החיתוך.</li>
+          <li>OCR לטווח עמודים (למשל 1-5, 8, 10-12), עם בחירת מנוע לפעולה.</li>
+          <li>תוקן: OCR לכל המסמך ולטווח עמודים לקח את שכבת הטקסט המוטבעת במקום לזהות את העמוד.</li>
+          <li>הוסר "OCR של Windows" הישן (Windows.Media.Ocr): אין לו תמיכה בעברית.</li>
+        </ul>
         <span class="version-tag" data-t-skip>4.4.5</span>
         <ul>
           <li>חיפוש ספר בתוך התיקיות שהוכנסו: תיבת חיפוש מתחת ל„התיקיות שלי“ מוצאת קובץ לפי שם בכל תתי־התיקיות (Enter פותח את הראשון).</li>

@@ -30,3 +30,9 @@
 
 ## 3.5.2
 * אותיות משובשות עדיין ב-3.5.1 (צילום משתמשת). תיקון: getDocument עם useSystemFonts:false + disableFontFace:true. אם עדיין משובש — להשוות לטעינת pdf.js בתוסף המאוחד (worker מ-blob, js/app.js ensureWorkerBlob).
+
+## 4.5.0
+* שולבו תיקוני השותף (קובץ .otzplugin שסומן 3.7.0, בסיסו 3.6.0) על 4.4.5 בענף viewer-3.3.3.
+* OCR דרך הגשר: B.snipRecognizeCanvas → /oneocr/recognize (JPEG 0.95, מהיר מ-PNG), נפילה ל-/snip/ocr. B.directAvailable → /oneocr/status. בצד הגשר: OneOcrApi.cs ו-Server.cs ב-otzaria-system-tools/bridge — **לא לשנות את OneOcrApi.cs בלי מדידת מהירות** (קריטי לזמן ~1 שנ׳ לעמוד).
+* באג שתוקן: processAll השתמש ב-getPageText גם כש-useOcr=true.
+* לא נבדק באוצריא אמיתית, רק תחביר JS ובדיקת מזהי DOM.
