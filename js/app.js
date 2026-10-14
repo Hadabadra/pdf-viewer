@@ -716,7 +716,7 @@
     if (!V.path || !V.numPages) return;
     S.positions[V.path] = V.current;
     const tb = activeTab();
-    if (tb && tb.path === V.path) { tb.page = V.current; saveTabs(); }
+    if (tb && tb.path === V.path) { tb.page = V.current; tb.off = curOffset(); saveTabs(); }
     const keys = Object.keys(S.positions);
     if (keys.length > 150) delete S.positions[keys[0]];
     store.set('positions', S.positions);
@@ -745,7 +745,7 @@
     if (!setupPdfJs()) { toast.err('רכיב התצוגה לא נטען'); return; }
     if (V.path === path && V.pdf && !opts.force) { setNarrowView('viewer'); goToPage(opts.page || V.current); return; }
     const tab = activeTab();
-    tab.path = path; tab.page = opts.page || null;
+    tab.path = path; tab.page = opts.page || null; tab.off = opts.off == null ? null : opts.off;
     if (!opts.norecord) recordOpen(path);
     renderTabs(); saveTabs();
 
@@ -838,6 +838,7 @@
     V.current = startPage;
     el['page-total'].textContent = '/ ' + V.numPages.toLocaleString('he-IL');
     goToPage(startPage, null, true);
+    if (opts.off != null && opts.page === startPage) applyOffset(startPage, opts.off);
     updateVisible();
     updateToolbarState();
     el['pages-scroll'].focus({ preventScroll: true });
@@ -888,6 +889,23 @@
     updateVisible();
   }
 
+  // כמה עמודים מחוץ לאזור הנראה נשארים עם canvas; ככל שקטן יותר — פחות זיכרון
+  const V_KEEP = 2;
+  // מיקום גלילה מדויק (שבר גובה העמוד הנוכחי) לשחזור בחזרה ללשונית
+  function curOffset() {
+    const p = V.pages[V.current - 1];
+    if (!p || !p.el.offsetHeight) return null;
+    const sc = el['pages-scroll'];
+    const f = (sc.scrollTop + sc.clientHeight * 0.35 - p.el.offsetTop) / p.el.offsetHeight;
+    return Math.round(Math.min(1, Math.max(0, f)) * 1000) / 1000;
+  }
+  function applyOffset(n, off) {
+    const p = V.pages[n - 1];
+    if (!p || off == null || !isFinite(off)) return;
+    const sc = el['pages-scroll'];
+    sc.scrollTop = Math.max(0, p.el.offsetTop + off * p.el.offsetHeight - sc.clientHeight * 0.35);
+  }
+
   function updateVisible() {
     if (!V.pdf || !V.pages.length) return;
     const sc = el['pages-scroll'];
@@ -903,7 +921,7 @@
     if (cur !== V.current) { V.current = cur; updateToolbarState(); savePos(); markTocCurrent(); }
     // פינוי זיכרון
     for (let i = 0; i < V.pages.length; i++) {
-      if ((i < a - 4 || i > b + 4) && V.pages[i].hasContent) clearPage(V.pages[i]);
+      if ((i < a - V_KEEP || i > b + V_KEEP) && V.pages[i].hasContent) clearPage(V.pages[i]);
     }
     pump();
   }
@@ -948,7 +966,7 @@
       const viewport = page.getViewport({ scale });
       let dpr = Math.min(window.devicePixelRatio || 1, 3);
       const area = viewport.width * viewport.height * dpr * dpr;
-      if (area > 16777216) dpr = Math.max(1, Math.sqrt(16777216 / (viewport.width * viewport.height)));
+      if (area > 8388608) dpr = Math.max(1, Math.sqrt(8388608 / (viewport.width * viewport.height)));
 
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.floor(viewport.width * dpr));
@@ -1725,14 +1743,14 @@
 
   /* ═════════════════════ לשוניות ═════════════════════ */
   function activeTab() { return T.tabs.find((t) => t.id === T.active) || T.tabs[0]; }
-  function newTabObj(path) { return { id: T.nextId++, path: path || null, page: null }; }
+  function newTabObj(path) { return { id: T.nextId++, path: path || null, page: null, off: null }; }
   function syncActiveTabPage() {
     const t = activeTab();
-    if (t && V.pdf && V.path && t.path === V.path) t.page = V.current;
+    if (t && V.pdf && V.path && t.path === V.path) { t.page = V.current; t.off = curOffset(); }
   }
   const saveTabs = debounce(() => {
     store.set('tabs', {
-      list: T.tabs.map((t) => ({ path: t.path, page: t.page || null })),
+      list: T.tabs.map((t) => ({ path: t.path, page: t.page || null, off: t.off == null ? null : t.off })),
       active: Math.max(0, T.tabs.findIndex((t) => t.id === T.active))
     });
   }, 400);
@@ -1752,7 +1770,7 @@
   }
   function showActiveTab() {
     const t = activeTab();
-    if (t.path && S.byPath.has(t.path)) openDoc(t.path, { page: t.page || undefined, force: true, norecord: true });
+    if (t.path && S.byPath.has(t.path)) openDoc(t.path, { page: t.page || undefined, off: t.off, force: true, norecord: true });
     else { t.path = null; t.page = null; if (S.entries.length) showHome(); else stageEmpty(); }
     renderTabs();
   }
@@ -2729,7 +2747,7 @@
       const saved = await store.get('tabs');
       const list = saved && Array.isArray(saved.list) ? saved.list.filter((t) => t && (t.path == null || S.byPath.has(t.path))) : [];
       if (list.length) {
-        T.tabs = list.map((t) => ({ id: T.nextId++, path: t.path || null, page: t.page || null }));
+        T.tabs = list.map((t) => ({ id: T.nextId++, path: t.path || null, page: t.page || null, off: typeof t.off === 'number' ? t.off : null }));
         T.active = T.tabs[Math.min(Math.max(0, saved.active | 0), T.tabs.length - 1)].id;
       } else {
         const last = await store.get('last');
