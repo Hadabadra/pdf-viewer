@@ -3,15 +3,16 @@
   'use strict';
 
   const PV = (window.PV = window.PV || {});
-  PV.version = '4.5.0';
+  PV.version = '4.6.2';
   const $ = (PV.$ = (id) => document.getElementById(id));
 
   // ── אייקונים ──────────────────────────────────────────────────────────
   PV.icon = function (name, extraClass) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 20 20');
+    const stroke = name.indexOf('s_') === 0; // סמלי קו (24x24) לסרגל הכלים והלשוניות
+    svg.setAttribute('viewBox', stroke ? '0 0 24 24' : '0 0 20 20');
     svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('class', 'ic' + (extraClass ? ' ' + extraClass : ''));
+    svg.setAttribute('class', 'ic' + (stroke ? ' ic-stroke' : '') + (extraClass ? ' ' + extraClass : ''));
     svg.innerHTML = (window.PV_ICONS && window.PV_ICONS[name]) || '';
     return svg;
   };
@@ -113,11 +114,15 @@
   PV.settings = {
     zoom: 'fit-width',
     resume: true,
+    restoreTabs: true,
+    searchShowPath: true, // הצגת הנתיב מתחת לשם בתוצאות החיפוש  // שחזור לשוניות בפתיחה
     nightAuto: true,
     sidebar: true,
     ocrQuality: 2,
     ocrLines: true,
     ocrCols: false,
+    renderQuality: 2,   // דגימת־יתר מינימלית לעמודים: 2 חדה (ברירת מחדל) · 1.5 מאוזנת · 1 מהירה
+    ocrMode: 'ocr',     // 'ocr' | 'extract' — מצב כפתורי תפריט החילוץ/זיהוי
     ocrEngine: 'tesseract', // 'tesseract' | 'windows' (דרך גשר אוצריא)
   };
   PV.loadSettings = async function () {
@@ -171,6 +176,7 @@
     const bar = $('snackbar');
     $('snackbar-text').textContent = msg;
     bar.classList.toggle('error', !!o.error);
+    bar.classList.toggle('info', !!o.info && !o.error);
     bar.classList.add('show');
     clearTimeout(snackTimer);
     snackTimer = setTimeout(() => bar.classList.remove('show'), o.long ? 6000 : 3000);
@@ -226,6 +232,48 @@
     let t = null;
     return function () { const a = arguments; clearTimeout(t); t = setTimeout(() => fn.apply(null, a), ms); };
   };
+  /** שם לתצוגה: בלי הסיומת ‎.pdf (סיומות אחרות נשארות) */
+  PV.dispName = (n) => String(n == null ? '' : n).replace(/\.pdf$/i, '');
+
+  /** ניווט בחיצים ברשימה בזמן שהמיקוד נשאר בתיבה (aria-activedescendant). Enter פותח, Esc — o.onEscape */
+  let lnSeq = 0;
+  PV.listNav = function (input, list, o) {
+    o = o || {};
+    if (!list.id) list.id = 'pvln' + (++lnSeq);
+    list.setAttribute('role', 'listbox');
+    input.setAttribute('aria-controls', list.id);
+    input.setAttribute('aria-autocomplete', 'list');
+    let cur = null;
+    const items = () => Array.from(list.querySelectorAll('.list-item')).filter((el) => el.offsetParent !== null);
+    function set(el) {
+      if (cur) cur.classList.remove('active');
+      cur = el;
+      if (el) {
+        if (!el.id) el.id = 'pvlo' + (++lnSeq);
+        el.setAttribute('role', 'option');
+        el.classList.add('active');
+        input.setAttribute('aria-activedescendant', el.id);
+        el.scrollIntoView({ block: 'nearest' });
+      } else input.removeAttribute('aria-activedescendant');
+    }
+    new MutationObserver(() => { if (cur && !list.contains(cur)) set(null); }).observe(list, { childList: true, subtree: true });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const it = items(); if (!it.length) return;
+        e.preventDefault(); e.stopPropagation();
+        let i = it.indexOf(cur);
+        i = e.key === 'ArrowDown' ? (i + 1) % it.length : (i <= 0 ? it.length - 1 : i - 1);
+        set(it[i]);
+      } else if (e.key === 'Enter') {
+        const el = cur && list.contains(cur) ? cur : items()[0];
+        if (el) { e.preventDefault(); e.stopPropagation(); el.click(); }
+      } else if (e.key === 'Escape') {
+        set(null);
+        if (o.onEscape) o.onEscape(e);
+      }
+    });
+    return { reset: () => set(null) };
+  };
   PV.errMsg = (e) => (e && (e.message || e.code)) || String(e);
 
   // ── תפריטים צפים: סגירה בלחיצה מחוץ / Esc ──────────────────────────────
@@ -241,7 +289,8 @@
     });
     popover.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (e.target.closest('.menu-item')) popover.classList.remove('open');
+      const mi = e.target.closest('.menu-item');
+      if (mi && !mi.hasAttribute('data-keep-open')) popover.classList.remove('open');
     });
   };
   document.addEventListener('click', () => PV.closePopovers());

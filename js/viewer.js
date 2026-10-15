@@ -6,6 +6,9 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.js';
 
   const MAX_RENDERED = 10;
+  const MAX_CONCURRENT = 2;        // עמודים שמצטיירים במקביל (הקרובים לעמוד הנוכחי קודם)
+  const SCROLL_IDLE_MS = 140;      // שכבת הטקסט (כבדה) נבנית רק אחרי שהגלילה נעצרה
+  const ZOOM_HOLD_MS = 90;         // בזמן רצף תקריבים — הקנבס הישן נמתח, והרינדור מחדש מחכה
   const PAGE_GAP_PX = 14;
 
   const V = (PV.viewer = {
@@ -34,7 +37,8 @@
   function availableSize() {
     const cs = getComputedStyle(pagesEl);
     const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-    return { w: Math.max(120, viewerEl.clientWidth - padX - 4), h: Math.max(120, viewerEl.clientHeight - 30) };
+    // גובה: 8px מרווח מעל ו-8px מתחת לעמוד (כמו קפיצת goTo), כך שהתאמה לגובה מדויקת
+    return { w: Math.max(120, viewerEl.clientWidth - padX), h: Math.max(120, viewerEl.clientHeight - 16) };
   }
   function computeScale(mode) {
     if (typeof mode === 'number') return mode;
@@ -47,17 +51,101 @@
   V.computeScale = computeScale;
 
   // ── טעינת מסמך ─────────────────────────────────────────────────────────
-  V.close = function () {
+  /** מנקה את התצוגה בלי להרוס את המסמך (כדי שלשונית אחרת תוכל להציג מסמך אחר, והמסמך יישאר בזיכרון). */
+  V.unmount = function () {
     V.gen++;
-    if (V.doc && V.doc.pdf) { try { V.doc.pdf.destroy(); } catch (e) { /* כבר נסגר */ } }
+    V.rendered.forEach((r) => { if (r.task) try { r.task.cancel(); } catch (e) { /* בוטל */ } });
     V.doc = null; V.count = 0; V.page = 1; V.pageBox = []; V.els = [];
-    V.rendered.clear(); V.textContent.clear();
+    V.rendered.clear(); V.textContent = new Map(); pendingText.length = 0;
     pagesEl.innerHTML = '';
     pagesEl.hidden = false;
     viewerEl.querySelectorAll('.doc-frame').forEach((f) => f.remove());
+  };
+  V.destroyDoc = function (doc) {
+    if (doc && doc.busyOcr) { doc.destroyLater = true; return; } // ה-OCR עדיין רץ על המסמך — ייהרס רק בסיומו
+    if (doc && doc.pdf) { try { doc.pdf.destroy(); } catch (e) { /* כבר נסגר */ } }
+  };
+  /** סגירה מלאה של המסמך המוצג (הורס אותו) ומעבר למסך הפתיחה. */
+  V.close = function () {
+    const d = V.doc;
+    V.unmount();
+    V.destroyDoc(d);
     $('welcome').hidden = false;
     PV.emit('doc', null);
   };
+  /** לשונית ריקה: מסך הפתיחה, בלי להרוס שום מסמך. */
+  V.showEmpty = function () {
+    V.unmount();
+    $('welcome').hidden = false;
+    PV.emit('doc', null);
+  };
+  /** מצב התצוגה של המסמך הנוכחי, להחזרה מאוחר יותר ב-V.resume. המסמך נשאר בזיכרון. */
+  V.suspend = function () {
+    if (!V.doc) return null;
+    const st = {
+      doc: V.doc, count: V.count, pageBox: V.pageBox, textContent: V.textContent,
+      zoomMode: V.zoomMode, rotation: V.rotation, page: V.page, frac: V.count ? pageOffsetFraction() : 0,
+    };
+    V.unmount();
+    return st;
+  };
+  /** מציג מחדש מסמך שהושהה ב-V.suspend, באותו עמוד, תקריב וסיבוב. */
+  V.resume = function (st, meta) {
+    const opts = meta || {};
+    V.unmount();
+    const gen = V.gen;
+    V.doc = st.doc; V.count = st.count; V.pageBox = st.pageBox; V.textContent = st.textContent || new Map();
+    V.rotation = st.rotation || 0;
+    V.page = 1;
+    $('welcome').hidden = true;
+    mountDocView(V.doc, gen);
+    V.docOrigin = opts.origin || 'resume';
+    V.setZoom(isNaN(Number(st.zoomMode)) ? st.zoomMode : Number(st.zoomMode), { noScroll: true });
+    viewerEl.scrollTop = 0;
+    if (st.page && st.page > 1 && st.page <= V.count) V.goTo(st.page, { instant: true, fraction: st.frac || 0 });
+    PV.emit('doc', V.doc);
+    updateVisible();
+    viewerEl.focus({ preventScroll: true });
+  };
+
+  function mountDocView(doc, gen) {
+    if (doc.kind === 'pdf' || doc.kind === 'images') {
+      buildPages();
+      if (doc.kind === 'pdf' && !doc.measured) measurePagesInBackground(gen);
+    } else if (doc.kind === 'text') {
+      const box = document.createElement('div');
+      box.className = 'doc-text';
+      doc.parts.forEach((p, i) => {
+        if (p.title && doc.parts.length > 1) {
+          const h = document.createElement('span');
+          h.className = 'doc-part';
+          h.textContent = p.title;
+          box.appendChild(h);
+        }
+        if (p.blocks) {
+          p.blocks.forEach((b) => {
+            const el = document.createElement(b.h ? 'h' + (b.h + 1) : 'div');
+            if (b.h) el.className = 'doc-h';
+            b.runs.forEach((r) => {
+              if (r.b && !b.h) { const s = document.createElement('b'); s.textContent = r.t; el.appendChild(s); }
+              else el.appendChild(document.createTextNode(r.t));
+            });
+            if (!b.runs.length) el.appendChild(document.createTextNode('\u200b'));
+            box.appendChild(el);
+          });
+        } else box.appendChild(document.createTextNode(p.text + (i < doc.parts.length - 1 ? '\n' : '')));
+      });
+      pagesEl.appendChild(box);
+    } else if (doc.kind === 'html') {
+      const frame = document.createElement('iframe');
+      frame.className = 'doc-frame';
+      frame.setAttribute('sandbox', '');
+      frame.srcdoc = doc.html;
+      pagesEl.hidden = true;
+      viewerEl.appendChild(frame);
+      doc.frame = frame;
+    }
+  }
 
   /** kind: 'pdf' (data: ArrayBuffer) | 'images' (data: HTMLCanvasElement[]) | 'text' (data: {parts:[{title,text}]}) | 'html' (data: string) */
   V.open = async function (kind, data, meta) {
@@ -69,10 +157,15 @@
         // 3.5.2: גופנים לא מוטבעים/סמליים — לא להחליף בגופן מערכת, ולצייר את צורות האותיות עצמן במקום FontFace
         useSystemFonts: false, disableFontFace: true }).promise;
     }
-    V.close();
+    if (opts.beforeMount) {
+      try { opts.beforeMount(); } catch (e) { if (pdf) { try { pdf.destroy(); } catch (x) { /* */ } } throw e; }
+    }
+    const prevDoc = V.doc;
+    V.unmount();
+    if (prevDoc && opts.destroyPrev) V.destroyDoc(prevDoc);
     const gen = V.gen;
     V.doc = { kind, name: opts.name || '', source: opts.source || null, pdf };
-    V.rotation = 0;
+    V.rotation = opts.rotation || 0;
     V.page = 1;
     $('welcome').hidden = true;
 
@@ -83,43 +176,24 @@
       const base = { w: vp.width, h: vp.height, rotate: 0 };
       V.pageBox = Array.from({ length: V.count }, () => Object.assign({}, base));
       if (gen !== V.gen) return;
-      buildPages();
-      measurePagesInBackground(gen);
     } else if (kind === 'images') {
       V.doc.images = data;
       V.count = data.length;
       V.pageBox = data.map((c) => ({ w: c.width, h: c.height, rotate: 0 }));
-      buildPages();
     } else if (kind === 'text') {
       V.doc.parts = data.parts;
       V.count = 0;
-      const box = document.createElement('div');
-      box.className = 'doc-text';
-      data.parts.forEach((p, i) => {
-        if (p.title && data.parts.length > 1) {
-          const h = document.createElement('span');
-          h.className = 'doc-part';
-          h.textContent = p.title;
-          box.appendChild(h);
-        }
-        box.appendChild(document.createTextNode(p.text + (i < data.parts.length - 1 ? '\n' : '')));
-      });
-      pagesEl.appendChild(box);
     } else if (kind === 'html') {
+      V.doc.html = data;
       V.count = 0;
-      const frame = document.createElement('iframe');
-      frame.className = 'doc-frame';
-      frame.setAttribute('sandbox', '');
-      frame.srcdoc = data;
-      pagesEl.hidden = true;
-      viewerEl.appendChild(frame);
-      V.doc.frame = frame;
     }
+    mountDocView(V.doc, gen);
+    V.docOrigin = opts.origin || 'open';
 
     const startMode = opts.zoom != null ? opts.zoom : PV.settings.zoom;
     V.setZoom(isNaN(Number(startMode)) ? startMode : Number(startMode), { noScroll: true });
     viewerEl.scrollTop = 0;
-    if (opts.page && opts.page > 1 && opts.page <= V.count) V.goTo(opts.page, { instant: true });
+    if (opts.page && opts.page > 1 && opts.page <= V.count) V.goTo(opts.page, { instant: true, fraction: opts.frac || 0 });
     PV.emit('doc', V.doc);
     updateVisible();
     viewerEl.focus({ preventScroll: true });
@@ -143,7 +217,8 @@
       } catch (e) { /* עמוד פגום — נשאר במידות ברירת המחדל */ }
       if (n % 40 === 0) await new Promise((r) => setTimeout(r, 0));
     }
-    if (changed && gen === V.gen) relayout();
+    if (gen === V.gen && V.doc) V.doc.measured = true;
+    if (changed && gen === V.gen) relayout(true);
   }
 
   function buildPages() {
@@ -154,10 +229,6 @@
       const d = document.createElement('div');
       d.className = 'page';
       d.dataset.page = n;
-      const num = document.createElement('span');
-      num.className = 'page-num';
-      num.textContent = n;
-      d.appendChild(num);
       frag.appendChild(d);
       V.els.push(d);
     }
@@ -167,14 +238,15 @@
   function sizePages() {
     V.els.forEach((d, i) => {
       const b = boxFor(i + 1);
-      d.style.width = Math.round(b.w * V.scale) + 'px';
-      d.style.height = Math.round(b.h * V.scale) + 'px';
+      d.style.width = Math.floor(b.w * V.scale) + 'px';
+      d.style.height = Math.floor(b.h * V.scale) + 'px';
     });
   }
 
   function unrenderAll() {
     V.rendered.forEach((r) => { if (r.task) try { r.task.cancel(); } catch (e) { /* בוטל */ } });
     V.rendered.clear();
+    pendingText.length = 0;
     V.els.forEach((d) => {
       d.querySelectorAll('canvas.page-canvas, .textLayer, .page-loading').forEach((c) => {
         if (c.tagName === 'CANVAS') { c.width = 0; c.height = 0; }
@@ -183,13 +255,31 @@
     });
   }
 
-  function relayout() {
+  /** שינוי מידה בלי לרוקן: הקנבסים הקיימים נשארים ונמתחים (CSS) עד שהרינדור החדש מוכן — בלי הבהוב לבן. */
+  function softUnrenderAll() {
+    V.rendered.forEach((r) => { if (r.task) try { r.task.cancel(); } catch (e) { /* בוטל */ } });
+    V.rendered.clear();
+    pendingText.length = 0;
+    V.els.forEach((d) => d.querySelectorAll('.textLayer, .page-loading').forEach((c) => c.remove()));
+  }
+  function trimStaleCanvases() {
+    const [a, b] = visibleRange();
+    V.els.forEach((d, i) => {
+      const n = i + 1;
+      if (n >= a && n <= b) return;
+      d.querySelectorAll('canvas.page-canvas').forEach((c) => { c.width = 0; c.height = 0; c.remove(); });
+    });
+  }
+
+  /** keep=true: תקריב/שינוי גודל (הקנבס הישן נשאר זמנית). בסיבוב — מרוקנים כרגיל, כי הצורה משתנה. */
+  function relayout(keep) {
     if (!V.doc) return;
     const anchor = V.page, frac = pageOffsetFraction();
     V.gen++;
-    unrenderAll();
+    if (keep) softUnrenderAll(); else unrenderAll();
     sizePages();
     if (V.count) V.goTo(anchor, { instant: true, fraction: frac, silent: true });
+    if (keep) { holdUntil = performance.now() + ZOOM_HOLD_MS; trimStaleCanvases(); }
     updateVisible();
     PV.emit('layout');
   }
@@ -218,7 +308,7 @@
     if (Math.abs(next - V.scale) < 0.001 && V.els[0] && V.els[0].style.width) { PV.emit('zoom'); return; }
     V.scale = next;
     if (opts && opts.noScroll) { V.gen++; unrenderAll(); sizePages(); updateVisible(); }
-    else relayout();
+    else relayout(true);
     PV.emit('zoom');
   };
   V.zoomBy = function (dir) {
@@ -252,6 +342,7 @@
     viewerEl.scrollTop = Math.max(0, top);
     if (V.page !== page) { V.page = page; PV.emit('page', page); }
   };
+  V.pageFrac = () => (V.count ? pageOffsetFraction() : 0);
   V.next = () => V.goTo(V.page + 1);
   V.prev = () => V.goTo(V.page - 1);
 
@@ -268,6 +359,10 @@
   }
 
   // ── רינדור עצל ─────────────────────────────────────────────────────────
+  let activeRenders = 0;      // רינדורי קנבס בתהליך
+  let holdUntil = 0, holdTimer = 0;
+  const pendingText = [];     // שכבות טקסט שנדחו עד שהגלילה נעצרת
+  V.scrolling = false;
   function visibleRange() {
     if (!V.count) return [0, -1];
     const top = viewerEl.scrollTop - 600, bottom = viewerEl.scrollTop + viewerEl.clientHeight + 600;
@@ -286,11 +381,36 @@
   function updateVisible() {
     if (!V.doc || !V.count) return;
     const [a, b] = visibleRange();
-    for (let n = a; n <= b && n > 0; n++) if (!V.rendered.has(n)) renderPage(n);
+    // רינדור שעדיין רץ לעמוד שיצא מהטווח — מבוטל, כדי לפנות את המנוע לעמודים שרואים עכשיו
+    Array.from(V.rendered.entries()).forEach(([n, r]) => { if (!r.done && (n < a - 1 || n > b + 1)) unrenderPage(n); });
     if (V.rendered.size > MAX_RENDERED) {
       const far = Array.from(V.rendered.keys()).filter((n) => n < a - 1 || n > b + 1)
         .sort((x, y) => Math.abs(y - V.page) - Math.abs(x - V.page));
       far.slice(0, V.rendered.size - MAX_RENDERED).forEach(unrenderPage);
+    }
+    pumpRenders();
+  }
+  /** רינדור מחדש של העמודים הנראים (למשל אחרי שינוי איכות התצוגה) — הקנבס הישן נשאר עד שהחדש מוכן */
+  V.rerender = function () { if (V.doc && V.count) relayout(true); };
+  /** מתחיל רינדורים חדשים, הקרוב לעמוד הנוכחי קודם, עד MAX_CONCURRENT במקביל. */
+  function pumpRenders() {
+    if (!V.doc || !V.count) return;
+    const wait = holdUntil - performance.now();
+    if (wait > 0) { clearTimeout(holdTimer); holdTimer = setTimeout(pumpRenders, wait + 5); return; }
+    const [a, b] = visibleRange();
+    const need = [];
+    for (let n = a; n <= b && n > 0; n++) if (!V.rendered.has(n)) need.push(n);
+    need.sort((x, y) => Math.abs(x - V.page) - Math.abs(y - V.page));
+    while (activeRenders < MAX_CONCURRENT && need.length) renderPage(need.shift());
+  }
+  /** בונה שכבות טקסט שנדחו (הקרובות לעמוד הנוכחי קודם), בלי לחסום את הגלילה */
+  async function flushText() {
+    pendingText.sort((x, y) => Math.abs(x.n - V.page) - Math.abs(y.n - V.page));
+    while (pendingText.length && !V.scrolling) {
+      const t = pendingText.shift();
+      if (t.gen !== V.gen || V.rendered.get(t.n) !== t.entry) continue;
+      try { await renderTextLayer(t.n, t.page, t.viewport, t.d, t.gen, t.entry); } catch (e) { /* בוטל */ }
+      await new Promise((r) => setTimeout(r, 0));
     }
   }
   V.refresh = updateVisible;
@@ -310,12 +430,18 @@
   async function renderPage(n) {
     const gen = V.gen, d = V.els[n - 1];
     if (!d) return;
-    const entry = { gen, task: null };
+    const entry = { gen, task: null, done: false };
     V.rendered.set(n, entry);
+    activeRenders++;
+    let released = false;
+    const release = () => { if (!released) { released = true; activeRenders--; } };
     // חדות: דגימת־יתר (לפחות פי 2) עם תקרה לזיכרון הקנבס
-    const dpr = Math.max(window.devicePixelRatio || 1, 2);
+    const dpr = Math.max(window.devicePixelRatio || 1, Number(PV.settings.renderQuality) || 2);
     const canvas = document.createElement('canvas');
     canvas.className = 'page-canvas';
+    // אם כבר יש קנבס ישן (אחרי תקריב) — מציירים בצד ומחליפים רק כשמוכן
+    const stale = Array.from(d.querySelectorAll('canvas.page-canvas'));
+    const swap = () => { stale.forEach((c) => { c.width = 0; c.height = 0; c.remove(); }); if (!canvas.isConnected) d.insertBefore(canvas, d.firstChild); };
     try {
       if (V.doc.kind === 'pdf') {
         const page = await V.doc.pdf.getPage(n);
@@ -324,11 +450,16 @@
         const q = Math.max(1, Math.min(dpr, Math.sqrt(24e6 / (viewport.width * viewport.height))));
         canvas.width = Math.floor(viewport.width * q);
         canvas.height = Math.floor(viewport.height * q);
-        d.insertBefore(canvas, d.firstChild);
+        if (!stale.length) d.insertBefore(canvas, d.firstChild);
         entry.task = page.render({ canvasContext: canvas.getContext('2d'), viewport, transform: q !== 1 ? [q, 0, 0, q, 0, 0] : null });
         await entry.task.promise;
         if (gen !== V.gen || V.rendered.get(n) !== entry) return;
-        await renderTextLayer(n, page, viewport, d, gen, entry);
+        swap();
+        entry.done = true;
+        release();
+        pumpRenders();
+        if (V.scrolling) pendingText.push({ n, page, viewport, d, gen, entry });
+        else await renderTextLayer(n, page, viewport, d, gen, entry);
       } else if (V.doc.kind === 'images') {
         const src = V.doc.images[n - 1];
         const b = boxFor(n);
@@ -338,11 +469,15 @@
         const ctx = canvas.getContext('2d');
         drawRotated(ctx, src, canvas.width, canvas.height, V.rotation);
         canvas.classList.add('doc-image');
-        d.insertBefore(canvas, d.firstChild);
+        swap();
+        entry.done = true;
       }
     } catch (e) {
       if (e && e.name === 'RenderingCancelledException') return;
       console.error(e);
+    } finally {
+      release();
+      pumpRenders();
     }
   }
 
@@ -376,14 +511,16 @@
 
   // ── שירותים לשאר המודולים ───────────────────────────────────────────────
   /** טקסט מוטבע של עמוד (PDF בלבד). */
-  V.getPageTextContent = async function (n) {
-    if (!V.doc || V.doc.kind !== 'pdf') return null;
+  V.getPageTextContent = async function (n, doc) {
+    const D = doc || V.doc;
+    if (!D || D.kind !== 'pdf') return null;
+    if (D !== V.doc) { const p = await D.pdf.getPage(n); return p.getTextContent(); } // מסמך שאינו מוצג כרגע (ריצת OCR ברקע)
     let tc = V.textContent.get(n);
-    if (!tc) { const p = await V.doc.pdf.getPage(n); tc = await p.getTextContent(); V.textContent.set(n, tc); }
+    if (!tc) { const p = await D.pdf.getPage(n); tc = await p.getTextContent(); V.textContent.set(n, tc); }
     return tc;
   };
-  V.getPageText = async function (n) {
-    const tc = await V.getPageTextContent(n);
+  V.getPageText = async function (n, doc) {
+    const tc = await V.getPageTextContent(n, doc);
     if (!tc) return '';
     let out = '';
     for (const it of tc.items) {
@@ -394,28 +531,32 @@
     return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   };
 
-  /** רינדור עמוד לקנבס מחוץ למסך, ב-scale נתון (ל-OCR ולהדפסה). */
-  V.renderOffscreen = async function (n, scale) {
+  /** רינדור עמוד לקנבס מחוץ למסך, ב-scale נתון (ל-OCR ולהדפסה).
+      opts: { doc, rotation } — למסמך אחר מהמוצג כרגע (כך שה-OCR ממשיך גם כשעוברים ללשונית אחרת). */
+  V.renderOffscreen = async function (n, scale, opts) {
+    const D = (opts && opts.doc) || V.doc;
+    const rotation = opts && opts.rotation != null ? opts.rotation : V.rotation;
     const canvas = document.createElement('canvas');
-    if (V.doc.kind === 'pdf') {
-      const page = await V.doc.pdf.getPage(n);
-      const viewport = page.getViewport({ scale, rotation: (page.rotate + V.rotation) % 360 });
+    if (D.kind === 'pdf') {
+      const page = await D.pdf.getPage(n);
+      const viewport = page.getViewport({ scale, rotation: (page.rotate + rotation) % 360 });
       canvas.width = Math.floor(viewport.width);
       canvas.height = Math.floor(viewport.height);
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport }).promise;
-    } else if (V.doc.kind === 'images') {
-      const src = V.doc.images[n - 1];
-      const b = boxFor(n);
+    } else if (D.kind === 'images') {
+      const src = D.images[n - 1];
+      const swap = rotation % 180 !== 0;
+      const b = { w: swap ? src.height : src.width, h: swap ? src.width : src.height };
       const f = Math.min(scale, 4000 / Math.max(b.w, b.h));
       canvas.width = Math.floor(b.w * f);
       canvas.height = Math.floor(b.h * f);
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      drawRotated(ctx, src, canvas.width, canvas.height, V.rotation);
+      drawRotated(ctx, src, canvas.width, canvas.height, rotation);
     }
     return canvas;
   };
@@ -423,9 +564,26 @@
 
   // ── עמודים ממוזערים ────────────────────────────────────────────────────
   const thumbsEl = $('thumbs');
-  let thumbObserver = null, thumbGen = 0;
+  let thumbObserver = null, thumbGen = 0, thumbPumping = false;
+  const thumbQueue = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** ממוזערים אחד-אחד ובעדיפות נמוכה: לא מתחרים עם רינדור העמודים הגדולים על המנוע */
+  async function pumpThumbs() {
+    if (thumbPumping) return;
+    thumbPumping = true;
+    try {
+      while (thumbQueue.length) {
+        if (activeRenders > 0 || V.scrolling || pendingText.length) { await sleep(150); continue; }
+        const it = thumbQueue.shift();
+        if (it.myGen !== thumbGen) continue;
+        await renderThumb(it.btn, it.myGen);
+        await sleep(15);
+      }
+    } finally { thumbPumping = false; }
+  }
   V.buildThumbs = function () {
     thumbGen++;
+    thumbQueue.length = 0;
     thumbsEl.innerHTML = '';
     if (thumbObserver) thumbObserver.disconnect();
     $('thumbs-empty').hidden = V.isPaged();
@@ -436,7 +594,8 @@
       entries.forEach((en) => {
         if (!en.isIntersecting) return;
         thumbObserver.unobserve(en.target);
-        renderThumb(en.target, myGen);
+        thumbQueue.push({ btn: en.target, myGen });
+        pumpThumbs();
       });
     }, { root, rootMargin: '300px' });
     const frag = document.createDocumentFragment();
@@ -548,7 +707,11 @@
 
   // ── אירועי גלילה ושינוי גודל ──────────────────────────────────────────
   let scrollRaf = 0;
+  let scrollIdleTimer = 0;
   viewerEl.addEventListener('scroll', () => {
+    V.scrolling = true;
+    clearTimeout(scrollIdleTimer);
+    scrollIdleTimer = setTimeout(() => { V.scrolling = false; flushText(); }, SCROLL_IDLE_MS);
     if (scrollRaf) return;
     scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; findCurrentPage(); updateVisible(); });
   }, { passive: true });
@@ -560,7 +723,7 @@
     lastW = w; lastH = h;
     if (V.doc && V.count && typeof V.zoomMode === 'string') {
       const next = computeScale(V.zoomMode);
-      if (Math.abs(next - V.scale) > 0.005) { V.scale = next; relayout(); PV.emit('zoom'); }
+      if (Math.abs(next - V.scale) > 0.005) { V.scale = next; relayout(true); PV.emit('zoom'); }
     } else updateVisible();
   }, 120));
   ro.observe(viewerEl);
