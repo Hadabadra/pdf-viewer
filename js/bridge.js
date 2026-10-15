@@ -162,10 +162,36 @@
     return B.direct;
   };
 
+  /** כתיבת קובץ בינארי דרך הגשר (גשר 3.3+): חתיכות של 1MB; ללא דריסה — קיים → "שם (2).pdf". מחזיר את הנתיב הסופי. */
+  function toBase64(u8) {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(',')[1] || '');
+      fr.onerror = () => rej(fr.error || new Error('read failed'));
+      fr.readAsDataURL(new Blob([u8]));
+    });
+  }
+  B.writeBinary = async function (path, bytes, opts) {
+    if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
+    const overwrite = !!(opts && opts.overwrite), CH = 1024 * 1024;
+    let final = path;
+    for (let off = 0; off < Math.max(bytes.length, 1); off += CH) {
+      const r = await B.call('/fs/write-binary', { path: final, content: await toBase64(bytes.subarray(off, off + CH)), append: off > 0, unique: off === 0 && !overwrite, overwrite: off === 0 && overwrite, makeDirs: true }, 120000);
+      final = (r && r.path) || final;
+    }
+    return final;
+  };
+
+  /** חלון "שמירה בשם" של Windows דרך הגשר (גשר 3.4+, בלי מגבלת הגודל של אוצריא). מחזיר { cancelled, path }. */
+  B.pickSaveFile = async function (o) {
+    if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
+    return B.call('/fs/pick-save-file', o || {}, 120000);
+  };
+
   /** מבנה מלא: שורות, מילים וקואורדינטות בפיקסלים של הקנבס (לשכבת טקסט מדויקת). זורק שגיאה אם המנוע הישיר לא זמין. */
   B.ocrLayoutCanvas = async function (canvas) {
     if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
-    return B.call('/oneocr/recognize', { image: canvas.toDataURL('image/png') }, 120000);
+    return B.call('/oneocr/recognize', { image: canvas.toDataURL('image/jpeg', 0.95) }, 120000);
   };
 
   // ── חיפוש קובץ לפי שם במחשב (מ-3.6.0) ──
@@ -211,56 +237,55 @@
     return 'data:' + (d.mime || 'application/octet-stream') + ';base64,' + d.content;
   };
 
-  /** חלון חיפוש קובץ לפי שם, ופתיחת התוצאה שנבחרה */
-  B.searchDialog = async function () {
-    if (!PV.hasOtz() || !(await B.probe())) { PV.error(PV.t('חיפוש קבצים דורש את גשר אוצריא פועל')); return; }
-    let roots;
-    try { roots = await B.roots(); }
-    catch (e) {
-      if (e.code !== 'unpaired') { PV.error(PV.errMsg(e)); return; }
-      try { await B.pair(); roots = await B.roots(); } catch (e2) { PV.error(PV.errMsg(e2)); return; }
+  /** חיפוש קובץ במחשב תוך כדי הקלדה: שורת חיפוש במסך הפתיחה ורשימה נפתחת */
+  const EXT = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'docx', 'epub', 'txt', 'md'];
+  B.initLiveSearch = function (input, ul, wrap) {
+    if (!input || !ul) return;
+    if (!PV.hasOtz()) { if (wrap) wrap.hidden = true; return; }
+    let roots = null, sig = { stop: true }, seq = 0;
+    const MAX = 100;
+    const msg = (t) => { ul.innerHTML = ''; const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = t; ul.appendChild(li); };
+    const close = () => { sig.stop = true; seq++; ul.hidden = true; ul.innerHTML = ''; input.setAttribute('aria-expanded', 'false'); };
+    async function getRoots() {
+      if (roots) return roots;
+      if (!(await B.probe())) throw new Error(PV.t('חיפוש קבצים דורש את גשר אוצריא פועל'));
+      try { roots = await B.roots(); }
+      catch (e) { if (e.code !== 'unpaired') throw e; await B.pair(); roots = await B.roots(); }
+      return roots;
     }
-    const sig = { stop: false };
-    const scrim = document.createElement('div');
-    scrim.style.cssText = 'position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:var(--color-scrim);padding:1em';
-    const box = document.createElement('div');
-    box.style.cssText = 'width:min(34em,100%);max-height:90%;overflow:auto;background:var(--color-surface);color:var(--color-on-surface);border-radius:var(--radius-lg);padding:1.2em;display:flex;flex-direction:column;gap:.7em';
-    const title = document.createElement('div'); title.style.fontWeight = '700'; title.textContent = PV.t('חיפוש קובץ במחשב');
-    const sel = document.createElement('select'); sel.className = 'input';
-    roots.forEach((r, i) => { const o = document.createElement('option'); o.value = i; o.textContent = r.name; sel.appendChild(o); });
-    const q = document.createElement('input'); q.className = 'input'; q.placeholder = PV.t('חלק משם הקובץ (אפשר * ?)');
-    const info = document.createElement('div'); info.className = 'muted';
-    const res = document.createElement('div'); res.style.cssText = 'max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:.2em';
-    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:.5em';
-    const go = document.createElement('button'); go.className = 'btn'; go.textContent = PV.t('חיפוש');
-    const close = document.createElement('button'); close.className = 'btn tonal'; close.textContent = PV.t('סגירה');
-    row.append(go, close); box.append(title, sel, q, info, res, row); scrim.appendChild(box); document.body.appendChild(scrim);
-    const shut = () => { sig.stop = true; scrim.remove(); };
-    close.onclick = shut;
-    scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) shut(); });
-    let n = 0;
-    const run = async () => {
-      const text = q.value.trim(); if (!text) return;
-      sig.stop = true; await new Promise((r) => setTimeout(r, 60)); sig.stop = false; n = 0; res.textContent = ''; info.textContent = PV.t('מחפש…');
+    async function open(h) {
+      close(); input.value = '';
+      try { PV.toast(PV.t('טוען…')); const url = await B.readFile(h.path); await PV.files.openUrl(url, h.name, { source: null }); }
+      catch (e) { PV.error(PV.errMsg(e)); }
+    }
+    async function run() {
+      const text = input.value.trim();
+      sig.stop = true;
+      if (text.length < 2) { close(); return; }
+      const my = ++seq, s = { stop: false }; sig = s;
+      ul.hidden = false; input.setAttribute('aria-expanded', 'true'); msg(PV.t('מחפש…'));
+      let n = 0; const seen = new Set();
       try {
-        await B.search({ root: roots[+sel.value].path, query: text, includeDirs: false, maxResults: 300,
-          extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff', 'docx', 'epub', 'txt', 'md'] }, (h) => {
-          n++;
-          const b = document.createElement('button'); b.className = 'btn tonal'; b.style.cssText = 'text-align:right;display:block;width:100%';
-          const nm = document.createElement('div'); nm.textContent = h.name;
-          const pa = document.createElement('div'); pa.className = 'muted'; pa.dir = 'ltr'; pa.style.textAlign = 'right'; pa.textContent = h.path;
-          b.append(nm, pa);
-          b.onclick = async () => {
-            shut();
-            try { PV.toast(PV.t('טוען…')); const url = await B.readFile(h.path); await PV.files.openUrl(url, h.name, { source: null }); }
-            catch (e) { PV.error(PV.errMsg(e)); }
-          };
-          res.appendChild(b); info.textContent = PV.t('נמצאו') + ' ' + n;
-        }, sig);
-        if (!sig.stop) info.textContent = n ? PV.t('נמצאו') + ' ' + n : PV.t('לא נמצאו קבצים');
-      } catch (e) { info.textContent = PV.errMsg(e); }
-    };
-    go.onclick = run; q.onkeydown = (e) => { if (e.key === 'Enter') run(); };
-    setTimeout(() => q.focus(), 30);
+        for (const r of await getRoots()) {
+          if (s.stop || n >= MAX) break;
+          await B.search({ root: r.path, query: text, includeDirs: false, maxResults: MAX - n, extensions: EXT }, (h) => {
+            if (s.stop || n >= MAX || seen.has(h.path)) return;
+            seen.add(h.path);
+            if (!n) ul.innerHTML = '';
+            n++;
+            const li = PV.files.makeItem(PV.files.fileIcon(h.name), h.name, h.path, () => open(h));
+            const sub = li.querySelector('.li-sub'); if (sub) sub.dir = 'ltr';
+            li.addEventListener('contextmenu', (e) => { e.preventDefault(); PV.toast(h.path, { info: true }); });
+            ul.appendChild(li);
+          }, s);
+        }
+        if (my === seq && !s.stop && !n) msg(PV.t('לא נמצאו קבצים'));
+      } catch (e) { if (my === seq) msg(PV.errMsg(e)); }
+    }
+    input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'false');
+    input.addEventListener('input', PV.debounce(run, 300));
+    PV.listNav(input, ul, { onEscape: (e) => { if (!ul.hidden) { e.stopPropagation(); close(); } else if (input.value) { e.stopPropagation(); input.value = ''; } } });
+    document.addEventListener('mousedown', (e) => { if (!(wrap || ul).contains(e.target)) { sig.stop = true; ul.hidden = true; input.setAttribute('aria-expanded', 'false'); } });
+    input.addEventListener('focus', () => { if (ul.children.length && input.value.trim().length >= 2) { ul.hidden = false; input.setAttribute('aria-expanded', 'true'); } });
   };
 })();

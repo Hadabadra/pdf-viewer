@@ -6,6 +6,36 @@
   PV.hydrateIcons();
 
   // ── סרגל עליון ────────────────────────────────────────────────────────
+  const ZOOM_OPTS = [['fit-width', 'התאמה לרוחב'], ['fit-height', 'התאמה לגובה'], ['fit-page', 'עמוד שלם'],
+    ['0.5', '50%'], ['0.75', '75%'], ['1', '100%'], ['1.25', '125%'], ['1.5', '150%'], ['2', '200%'], ['3', '300%']];
+  function updateZoomSelect(zoomable) {
+    const sel = $('zoom-select');
+    sel.disabled = !zoomable;
+    const mode = String(V.zoomMode), pct = Math.round((zoomable ? V.scale : 1) * 100) + '%';
+    sel.innerHTML = '';
+    let matched = false;
+    ZOOM_OPTS.forEach(([val, label]) => {
+      const o = document.createElement('option');
+      o.value = val;
+      const isFit = isNaN(Number(val));
+      const on = zoomable && val === mode;
+      if (on) matched = true;
+      o.textContent = isFit ? PV.t(label) + (on ? ' · ' + pct : '') : label;
+      sel.appendChild(o);
+    });
+    if (zoomable && !matched) {
+      const o = document.createElement('option');
+      o.value = 'custom'; o.textContent = pct;
+      sel.appendChild(o);
+      sel.value = 'custom';
+    } else sel.value = zoomable ? mode : '1';
+  }
+  $('zoom-select').addEventListener('change', () => {
+    const z = $('zoom-select').value;
+    if (z !== 'custom') V.setZoom(isNaN(Number(z)) ? z : Number(z));
+    updateNav();
+    $('viewer').focus({ preventScroll: true });
+  });
   function updateNav() {
     const paged = V.isPaged();
     $('btn-prev').disabled = !paged || V.page <= 1;
@@ -14,34 +44,33 @@
     if (document.activeElement !== $('page-input')) $('page-input').value = paged ? V.page : '';
     $('page-total').textContent = paged ? '/ ' + V.count : '/ –';
     const zoomable = !!(V.doc && (paged || V.doc.kind === 'text'));
-    ['btn-zoom-in', 'btn-zoom-out', 'btn-zoom-menu'].forEach((id) => { $(id).disabled = !zoomable; });
-    $('btn-zoom-menu').textContent = zoomable ? Math.round(V.scale * 100) + '%' : '100%';
-    document.querySelectorAll('#zoom-menu .menu-item').forEach((b) => {
-      const z = b.getAttribute('data-zoom');
-      b.classList.toggle('checked', String(V.zoomMode) === z);
-    });
+    ['btn-zoom-in', 'btn-zoom-out'].forEach((id) => { $(id).disabled = !zoomable; });
+    updateZoomSelect(zoomable);
     $('btn-find').disabled = !(V.doc && V.doc.kind === 'pdf');
     document.querySelectorAll('#more-menu .doc-only').forEach((b) => { b.disabled = !paged; });
-    document.querySelector('#more-menu [data-act="close-doc"]').disabled = !V.doc;
-    document.querySelector('#more-menu [data-act="find"]').disabled = !(V.doc && V.doc.kind === 'pdf');
-    document.querySelector('#more-menu [data-act="night"]').classList.toggle('checked', V.night);
+    ['btn-fitwidth', 'btn-fitheight', 'btn-rotate', 'btn-night'].forEach((id) => { $(id).disabled = !paged; });
+    $('btn-fitwidth').classList.toggle('active', paged && V.zoomMode === 'fit-width');
+    $('btn-fitheight').classList.toggle('active', paged && V.zoomMode === 'fit-height');
+    $('btn-night').classList.toggle('active', V.night);
+    // חילוץ מוטבע קיים רק ב-PDF; זיהוי (OCR) עובד גם על תמונות
+    const noEmbedded = PV.settings.ocrMode === 'extract' && !(V.doc && V.doc.kind === 'pdf');
     document.querySelectorAll('#ocr-menu [data-act]').forEach((b) => {
       const a = b.getAttribute('data-act');
-      if (a === 'paste' || a === 'capture') return;
-      b.disabled = !paged || (a === 'extract-all' && V.doc.kind !== 'pdf');
+      b.disabled = !paged || (a.indexOf('run-') === 0 && noEmbedded);
     });
+    $('ocr-range-go').disabled = !paged || noEmbedded;
   }
   PV.on('page', (n) => { updateNav(); V.markThumb(n); });
   PV.on('zoom', updateNav);
   PV.on('night', updateNav);
+  PV.on('language', updateNav);
   PV.on('doc', async (doc) => {
-    $('doc-name').textContent = doc ? doc.name : PV.t('לא נפתח קובץ');
-    $('doc-name').title = doc ? doc.name : '';
     if (PV.find) $('findbar').hidden = true;
     updateNav();
     if (!doc) { V.buildThumbs(); V.buildToc(); return; }
     V.buildThumbs();
     const hasToc = await V.buildToc();
+    if (V.docOrigin !== 'open') return; // מעבר בין לשוניות / שחזור: לא משנים את מצב חלונית הצד
     if (V.isPaged() && PV.settings.sidebar && window.innerWidth > 900) setSidebar(true);
     if (hasToc && !sidebarTab.touched) showTab('toc'); else if (!sidebarTab.touched) showTab('pages');
   });
@@ -56,12 +85,6 @@
   $('page-input').addEventListener('blur', () => { $('page-input').value = V.isPaged() ? V.page : ''; });
   $('btn-zoom-in').addEventListener('click', () => V.zoomBy(1));
   $('btn-zoom-out').addEventListener('click', () => V.zoomBy(-1));
-  PV.bindPopover($('btn-zoom-menu'), $('zoom-menu'));
-  document.querySelectorAll('#zoom-menu [data-zoom]').forEach((b) => b.addEventListener('click', () => {
-    const z = b.getAttribute('data-zoom');
-    V.setZoom(isNaN(Number(z)) ? z : Number(z));
-  }));
-  $('btn-open').addEventListener('click', Fs.pick);
   $('btn-find').addEventListener('click', () => PV.find.open());
   PV.bindPopover($('btn-ocr-menu'), $('ocr-menu'));
   PV.bindPopover($('btn-more'), $('more-menu'));
@@ -71,30 +94,62 @@
     $('btn-textpanel').classList.toggle('active', !tp.hidden);
   });
 
+  // ── תפריט החילוץ/זיהוי: בורר מצב וטווח עמודים בתוך התפריט ─────────────
+  function setOcrMode(mode, save) {
+    PV.settings.ocrMode = mode === 'extract' ? 'extract' : 'ocr';
+    if (save) PV.saveSettings();
+    document.querySelectorAll('#ocr-mode .seg-btn').forEach((b) => {
+      const on = b.dataset.mode === PV.settings.ocrMode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('#ocr-menu .menu-hint').forEach((h) => { h.hidden = h.dataset.hint !== PV.settings.ocrMode; });
+    updateNav();
+  }
+  document.querySelectorAll('#ocr-mode .seg-btn').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOcrMode(b.dataset.mode, true);
+  }));
+  function toggleRange() {
+    const box = $('ocr-range-box');
+    const open = box.hidden;
+    box.hidden = !open;
+    document.querySelector('#ocr-menu [data-act="run-range-toggle"]').classList.toggle('open', open);
+    if (open) {
+      $('ocr-range-hint').textContent = PV.t('במסמך {n} עמודים · למשל: 1-5, 8, 10-12', { n: V.count });
+      $('ocr-range-input').value = String(V.page);
+      setTimeout(() => { $('ocr-range-input').focus(); $('ocr-range-input').select(); }, 30);
+    }
+  }
+  function startRange() {
+    if (!V.isPaged()) { PV.toast(PV.t('יש לפתוח PDF או תמונה')); return; }
+    const pages = O.parseRange($('ocr-range-input').value, V.count);
+    if (!pages || !pages.length) { PV.toast(PV.t('טווח העמודים אינו תקין (המסמך כולל {n} עמודים)', { n: V.count })); return; }
+    PV.closePopovers();
+    O.processAll(PV.settings.ocrMode !== 'extract', { pages });
+  }
+  $('ocr-range-go').addEventListener('click', startRange);
+  $('ocr-range-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); startRange(); } });
+
   function act(a) {
     switch (a) {
-      case 'open': return Fs.pick();
       case 'add-folder': return Fs.addFolder();
-      case 'find': return PV.find.open();
       case 'rotate': return V.rotate();
       case 'night': return V.setNight(!V.night);
       case 'fit-width': return V.setZoom('fit-width');
+      case 'fit-height': return V.setZoom('fit-height');
       case 'print-pages': return printPages();
-      case 'close-doc': return V.close();
       case 'settings': return openOverlay('settings');
       case 'about': return openOverlay('about');
-      case 'extract-page': return O.extractPage();
-      case 'ocr-page': return O.ocrPage();
-      case 'ocr-region': return O.startRegion();
-      case 'ocr-all': return O.processAll(true);
-      case 'ocr-range': return openRange();
-      case 'snip-page': return O.ocrPage(undefined, { engine: 'snip' });
-      case 'snip-all': return O.processAll(true, { engine: 'snip' });
-      case 'extract-all': return O.processAll(false);
-      case 'paste': return PV.capture.pasteFromClipboard();
-      case 'capture': return PV.capture.start();
+      case 'run-region': return O.startRegion(PV.settings.ocrMode);
+      case 'run-page': return PV.settings.ocrMode === 'extract' ? O.extractPage(undefined, { noOcr: true }) : O.ocrPage();
+      case 'run-all': return O.processAll(PV.settings.ocrMode !== 'extract');
+      case 'run-range-toggle': return toggleRange();
+      case 'ocr-searchable': return openSearchable('doc');
+      case 'ocr-folder': return openSearchable('folder');
     }
   }
+  PV.runOcrAction = act; // לקיצורי Ctrl+Shift+L / Ctrl+Shift+O (לפי מצב חילוץ/זיהוי)
   document.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => act(b.getAttribute('data-act'))));
 
   // ── חלונית הצד ────────────────────────────────────────────────────────
@@ -115,11 +170,11 @@
   document.querySelectorAll('#sidebar .tab').forEach((t) => t.addEventListener('click', () => { sidebarTab.touched = true; showTab(t.dataset.tab); }));
   $('btn-refresh-tabs').addEventListener('click', Fs.refreshOpenBooks);
   $('btn-add-folder').addEventListener('click', Fs.addFolder);
-  Fs.initFolderSearch();
   PV.on('show-files', () => { setSidebar(true); sidebarTab.touched = true; showTab('files'); });
 
   // מסך פתיחה
   $('welcome-open').addEventListener('click', Fs.pick);
+  PV.bridge.initLiveSearch($('pc-search'), $('pc-results'), $('welcome-search'));
   $('welcome-paste').addEventListener('click', () => PV.capture.pasteFromClipboard());
   $('welcome-folder').addEventListener('click', Fs.addFolder);
 
@@ -170,25 +225,22 @@
     const inField = e.target && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName));
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'Escape') {
-      if (PV.capture.isOpen()) { PV.capture.close(); return; }
       if ($('viewer').classList.contains('region-mode')) { O.cancelRegion(); return; }
       if (!$('overlay').classList.contains('open') && !$('findbar').hidden) { PV.find.close(); return; }
       if ($('overlay').classList.contains('open')) { closeOverlay(); return; }
       PV.closePopovers();
       return;
     }
-    if (mod && !e.altKey) {
-      const k = e.key.toLowerCase();
-      if (k === 'o') { e.preventDefault(); Fs.pick(); return; }
-      if (k === 'f' && e.shiftKey) { e.preventDefault(); PV.bridge.searchDialog(); return; }
-      if (k === 'f') { e.preventDefault(); PV.find.open(); return; }
-      if (k === 'e' && !inField) { e.preventDefault(); O.extractPage(); return; }
-      if (k === 'r' && !inField) { e.preventDefault(); O.startRegion(); return; }
-      if (k === 'g') { e.preventDefault(); if (V.isPaged()) $('page-input').focus(); return; }
-      if (k === ']' ) { e.preventDefault(); V.rotate(); return; }
-      if (k === '=' || k === '+') { e.preventDefault(); V.zoomBy(1); return; }
-      if (k === '-') { e.preventDefault(); V.zoomBy(-1); return; }
-      if (k === '0') { e.preventDefault(); V.setZoom('fit-width'); return; }
+    // כל הקיצורים: Ctrl+Shift+אות. לפי e.code (המקש הפיזי), כדי שיעבדו גם כשמקלדת בעברית
+    if (mod && e.shiftKey && !e.altKey) {
+      const c = e.code;
+      if (c === 'KeyK') { e.preventDefault(); Fs.pick(); return; }
+      if (c === 'KeyF') { e.preventDefault(); PV.find.open(); return; }
+      if (c === 'KeyG') { e.preventDefault(); if (V.isPaged()) $('page-input').focus(); return; }
+      if (c === 'BracketRight') { e.preventDefault(); V.rotate(); return; }
+      if (c === 'Equal' || c === 'NumpadAdd') { e.preventDefault(); V.zoomBy(1); return; }
+      if (c === 'Minus' || c === 'NumpadSubtract') { e.preventDefault(); V.zoomBy(-1); return; }
+      if (c === 'Digit0' || c === 'Numpad0') { e.preventDefault(); V.setZoom('fit-width'); return; }
     }
     if (inField || !V.isPaged()) return;
     if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey && atPageEdge(1))) { e.preventDefault(); V.next(); }
@@ -260,28 +312,19 @@
   function showOverlayTab(name) {
     document.querySelectorAll('[data-otab]').forEach((t) => t.classList.toggle('active', t.dataset.otab === name));
     document.querySelectorAll('[data-opanel]').forEach((p) => { p.hidden = p.dataset.opanel !== name; });
-    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות', range: 'OCR לטווח עמודים' }[name]);
+    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות', searchable: 'PDF עם שכבת טקסט (OCR)' }[name]);
     const tabsBar = document.querySelector('#overlay .tabs');
-    if (tabsBar) tabsBar.hidden = name === 'range';
+    if (tabsBar) tabsBar.hidden = name === 'searchable';
     if (name === 'ocr') renderLangs();
   }
-  // OCR לטווח עמודים
-  function openRange() {
-    if (!V.isPaged()) { PV.toast(PV.t('יש לפתוח PDF או תמונה')); return; }
-    $('range-total').textContent = PV.t('במסמך {n} עמודים · למשל: 1-5, 8, 10-12', { n: V.count });
-    $('range-input').value = String(V.page);
-    openOverlay('range');
-    setTimeout(() => { $('range-input').focus(); $('range-input').select(); }, 50);
+  // PDF עם שכבת טקסט — מסמך או תיקייה
+  function openSearchable(src) {
+    if (O.busy) { O.notifyBusy(); return; }
+    if (src === 'doc' && !(V.doc && V.doc.blob)) { PV.toast(PV.t('פתחו קודם PDF או תמונה')); return; }
+    PV.searchable.opts.src = src;
+    PV.searchable.refreshUi();
+    openOverlay('searchable');
   }
-  function startRange() {
-    const pages = O.parseRange($('range-input').value, V.count);
-    if (!pages || !pages.length) { PV.toast(PV.t('טווח העמודים אינו תקין (המסמך כולל {n} עמודים)', { n: V.count })); return; }
-    const engine = $('range-engine').value || null;
-    closeOverlay();
-    O.processAll(true, { pages, engine });
-  }
-  $('range-go').addEventListener('click', startRange);
-  $('range-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') startRange(); });
   $('overlay-scrim').addEventListener('click', closeOverlay);
   $('overlay-close').addEventListener('click', closeOverlay);
   document.querySelectorAll('[data-otab]').forEach((t) => t.addEventListener('click', () => showOverlayTab(t.dataset.otab)));
@@ -307,6 +350,7 @@
   }
   PV.on('settings', (key) => {
     if (key === 'nightAuto') applyAutoNight();
+    if (key === 'renderQuality') V.rerender();
     if (key === 'ocrQuality' || key === 'ocrLines') { /* חל בזיהוי הבא */ }
   });
   function applyAutoNight() {
@@ -384,7 +428,6 @@
     box.textContent = msg;
   }
   $('btn-bridge-check').addEventListener('click', () => refreshSnip(true));
-  $('btn-bridge-search').addEventListener('click', () => PV.bridge.searchDialog());
   $('btn-snip-test').addEventListener('click', () => {
     if (!V.isPaged()) { PV.toast(PV.t('יש לפתוח PDF או תמונה')); return; }
     closeOverlay();
@@ -438,8 +481,6 @@
       try { r = await PV.call('feedback.report', { details: ('[צופה PDF+OCR ' + PV.version + ']\n' + msg).slice(0, 5000), reportType: 'other' }); }
       catch (e) { r = null; }
       if (r === 'cancelled') { st.textContent = PV.t('השליחה בוטלה'); return; }
-      /* #70 (אחת שאלתי): גם ל-GitHub כ-issue ציבורי, דרך הגשר והמתווך (אם הגשר מותקן) */
-      try { await PV.bridge.call('/sys/feedback', { text: msg.slice(0, 5000), plugin: 'צופה PDF+OCR', version: PV.version, repo: 'pdf-viewer' }, 8000); } catch (e) { /* אין גשר / גשר ישן */ }
       if (r !== 'sent' && r !== 'queued') {
         await PV.call('feedback.sendEmail', { to: 'E0548433917@outlook.com', subject: 'משוב על צופה PDF+OCR ' + PV.version, body: msg, includeSystemInfo: true });
       }
@@ -532,7 +573,7 @@
   }
 
   const FEATURE_PERMS = [
-    ['fs.user_files.read', 'פתיחת קבצים, אחרונים ותיקיות'], ['fs.user_files.write', 'שמירת טקסט כקובץ'],
+    ['fs.user_files.read', 'פתיחת קבצים, אחרונים ותיקיות'], ['fs.user_files.write', 'שמירת טקסט ו-PDF כקובץ'],
     ['library.content.read', 'פתיחת ספרי PDF מהספרייה'], ['library.books.provide', 'הקבצים שלי בחיפוש הספרייה'],
     ['reader.open', 'ספרים פתוחים וחיפוש בספרייה'],
   ];
@@ -541,6 +582,38 @@
     const off = FEATURE_PERMS.filter(([perm]) => !PV.can(perm)).map(([, label]) => PV.t(label));
     if (off.length) PV.toast(PV.t('כבויות כרגע (הרשאה לא אושרה): {l}. אפשר להפעיל בהגדרות התוסף.', { l: off.join(', ') }), { long: true });
     else if (changed) PV.toast(PV.t('ההרשאות עודכנו — כל היכולות זמינות'));
+  }
+
+  // ── זכירת מצב הממשק (חלונית צד, חלונית טקסט ותוכנה) ───────────────────
+  const saveUi = PV.debounce(() => {
+    const txt = O.getText();
+    PV.store.set('ui', {
+      sidebar: !$('sidebar').classList.contains('collapsed'),
+      tab: sidebarTab.current,
+      panel: !$('textpanel').hidden,
+      text: txt ? { text: txt.slice(0, 300000), title: $('text-title').textContent, sub: $('text-sub').textContent, source: O.lastSource || '' } : null,
+    });
+  }, 700);
+  (function watchUi() {
+    const mo = new MutationObserver(saveUi);
+    mo.observe($('sidebar'), { attributes: true, attributeFilter: ['class'] });
+    mo.observe($('sidebar').querySelector('.tabs'), { attributes: true, attributeFilter: ['class'], subtree: true });
+    mo.observe($('textpanel'), { attributes: true, attributeFilter: ['hidden'] });
+    mo.observe($('text-output'), { childList: true, characterData: true, subtree: true });
+  })();
+  /** שחזור לשוניות ומצב הממשק מהפעם הקודמת. */
+  async function restoreSession() {
+    if (PV.settings.restoreTabs === false) return;
+    const ui = await PV.store.get('ui', null);
+    if (ui && typeof ui === 'object') {
+      if (ui.tab) { sidebarTab.touched = true; showTab(ui.tab); }
+      if (typeof ui.sidebar === 'boolean') setSidebar(ui.sidebar);
+      if (ui.text && ui.text.text) O.show(ui.text.text, { title: ui.text.title, sub: ui.text.sub, source: ui.text.source, quiet: true });
+      const open = !!ui.panel;
+      $('textpanel').hidden = !open;
+      $('btn-textpanel').classList.toggle('active', open);
+    }
+    try { await PV.tabs.restore(); } catch (e) { /* ממשיכים בלי שחזור */ }
   }
 
   // ── עלייה ─────────────────────────────────────────────────────────────
@@ -554,11 +627,20 @@
     const lang = p.app && p.app.language;
     if (lang && lang !== 'he') PV.setLanguage(lang);
     await PV.loadSettings();
+    setOcrMode(PV.settings.ocrMode, false);
+    await PV.searchable.load();
+    PV.searchable.bindUi();
+    PV.searchable.closePanel = closeOverlay;
     if (PV.settings.ocrEngine === 'windows') PV.settings.ocrEngine = 'tesseract'; // OCR של Windows הוסר (אין עברית)
     bindSetting('set-zoom', 'zoom');
     bindSetting('set-resume', 'resume');
+    bindSetting('set-restore-tabs', 'restoreTabs');
     bindSetting('set-night-auto', 'nightAuto');
     bindSetting('set-sidebar', 'sidebar');
+    bindSetting('set-search-path', 'searchShowPath');
+    const syncPath = () => document.body.classList.toggle('hide-search-path', !PV.settings.searchShowPath);
+    syncPath(); PV.on('settings', (k) => { if (k === 'searchShowPath') syncPath(); });
+    bindSetting('set-render-quality', 'renderQuality', Number);
     bindSetting('set-ocr-quality', 'ocrQuality', Number);
     bindSetting('set-ocr-lines', 'ocrLines');
     bindSetting('set-ocr-engine', 'ocrEngine');
@@ -588,6 +670,7 @@
       Fs.refreshOpenBooks();
       setTimeout(() => Fs.syncLibrary(), 2500);
     }
+    await restoreSession();
   }
 
   if (PV.hasOtz() && typeof window.Otzaria.on === 'function') {
@@ -612,17 +695,18 @@
   updateNav();
 })();
 
-/* ── 3.5.0: Ctrl+E / Ctrl+R בשלב הלכידה, וידיות לשינוי רוחב החלוניות ── */
+/* ── קיצורים בשלב הלכידה (עובדים גם כשהמיקוד במסמך), וידיות לשינוי רוחב החלוניות ── */
 (function () {
   const $ = (id) => document.getElementById(id);
+  // Ctrl+Shift+L — אזור מסומן, Ctrl+Shift+O — עמוד נוכחי. הפעולה (חילוץ מוטבע / OCR) לפי המצב שנבחר בתפריט
   window.addEventListener('keydown', (e) => {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey) return;
     const t = e.target, inField = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-    const k = (e.key || '').toLowerCase();
-    if (inField || (k !== 'e' && k !== 'r') || !window.PV) return;
+    const c = e.code;
+    if (inField || (c !== 'KeyL' && c !== 'KeyO') || !window.PV) return;
     if (!PV.viewer || !PV.viewer.isPaged || !PV.viewer.isPaged()) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    if (k === 'e') PV.ocr.extractPage(); else PV.ocr.startRegion();
+    PV.runOcrAction(c === 'KeyL' ? 'run-region' : 'run-page');
   }, true);
 
   function save(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* */ } }

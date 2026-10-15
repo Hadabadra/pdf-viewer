@@ -27,9 +27,12 @@
     const m = meta || {};
     const kind = kindOf(name, blob.type);
     if (!kind) { PV.error(PV.t('סוג הקובץ אינו נתמך: {n}', { n: name })); return false; }
+    const ctx = PV.tabs ? PV.tabs.begin(Object.assign({}, m, { name })) : null;
+    if (ctx && ctx.existing) { await PV.tabs.focusExisting(ctx.existing, m.page); return true; }
     PV.progress.show(PV.t('פותח את {n}…', { n: name }));
     try {
-      const open = { name, source: m.source || null, page: m.page };
+      const open = { name, source: m.source || null, page: m.page, frac: m.frac, rotation: m.rotation, zoom: m.zoom, origin: m.origin };
+      if (ctx) Object.assign(open, ctx.openMeta);
       if (kind === 'pdf') {
         await V.open('pdf', await blob.arrayBuffer(), open);
       } else if (kind === 'image') {
@@ -43,19 +46,33 @@
       } else if (kind === 'html') {
         await V.open('html', await blob.text(), open);
       } else if (kind === 'text') {
-        await V.open('text', { parts: [{ title: '', text: await blob.text() }] }, Object.assign(open, { zoom: 1 }));
+        await V.open('text', { parts: [{ title: '', text: await blob.text() }] }, Object.assign(open, { zoom: m.zoom != null ? m.zoom : 1 }));
       } else {
         const zip = await JSZip.loadAsync(await blob.arrayBuffer());
         const parts = await extractZip(zip, kind);
-        await V.open('text', { parts: parts.length ? parts : [{ title: '', text: PV.t('(לא נמצא טקסט בקובץ)') }] }, Object.assign(open, { zoom: 1 }));
+        await V.open('text', { parts: parts.length ? parts : [{ title: '', text: PV.t('(לא נמצא טקסט בקובץ)') }] }, Object.assign(open, { zoom: m.zoom != null ? m.zoom : 1 }));
       }
-      if (m.source) Fs.addRecent(Object.assign({ name, size: blob.size, kind }, m.source));
+      if (V.doc && (kind === 'pdf' || kind === 'image' || kind === 'tiff')) V.doc.blob = blob; // לשמירת PDF עם שכבת טקסט
+      if (ctx) PV.tabs.commit(ctx, V.doc);
+      if (m.source && !m.noRecent) Fs.addRecent(Object.assign({ name, size: blob.size, kind }, m.source));
       return true;
     } catch (e) {
+      if (ctx) PV.tabs.rollback(ctx);
+      if (e && e.code === 'tab.stale') return false;
       PV.error(PV.t('לא ניתן לפתוח את הקובץ: {e}', { e: PV.errMsg(e) }));
       return false;
     } finally { PV.progress.hide(); }
   };
+
+  Fs.blobToCanvas = async function (blob) {
+    const img = await loadImage(blob);
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img, 0, 0);
+    return c;
+  };
+  Fs.decodeTiffBuffer = (buf) => decodeTiff(buf);
+  Fs.getFolders = () => folders;
 
   function loadImage(blob) {
     return new Promise((resolve, reject) => {
@@ -85,7 +102,20 @@
   }
 
   /** פתיחה מ-URL (שרת הקבצים של אוצריא, או dataUrl). */
+  /** פתיחה לפי מקור שמור (קובץ, ספר מהספרייה או קובץ בתיקייה) — לשחזור לשוניות. */
+  Fs.openSource = async function (src, meta) {
+    const m = Object.assign({}, meta, { source: src });
+    let d = null;
+    if (src.type === 'token') d = await PV.call('fs.resolveFileUrl', { token: src.token });
+    else if (src.type === 'book') d = await PV.call('library.openBookFile', src.bookUid ? { bookUid: src.bookUid } : { bookId: src.bookId, type: src.bookType || 'pdf' });
+    else if (src.type === 'folder') d = await PV.call('fs.openFolderFile', { folderToken: src.folderToken, path: src.path });
+    if (!d || !d.url) return false;
+    return Fs.openUrl(d.url, d.name || m.name || PV.t('ספר'), m);
+  };
+
   Fs.openUrl = async function (url, name, meta) {
+    const ex = PV.tabs && PV.tabs.existingFor(meta);
+    if (ex) { await PV.tabs.focusExisting(ex, meta && meta.page); return true; }
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     return Fs.openBlob(await resp.blob(), name, meta);
@@ -156,7 +186,7 @@
     const txt = document.createElement('span');
     txt.className = 'li-text';
     const t = document.createElement('span');
-    t.className = 'li-title'; t.textContent = title; t.title = title;
+    t.className = 'li-title'; t.textContent = PV.dispName(title); t.title = title;
     txt.appendChild(t);
     if (sub) { const s = document.createElement('span'); s.className = 'li-sub'; s.textContent = sub; txt.appendChild(s); }
     li.appendChild(txt);
@@ -177,23 +207,38 @@
     return li;
   }
   Fs.makeItem = makeItem;
+  Fs.fileIcon = (n) => fileIcon(n);
 
+  // חיפוש ברשימת ההיסטוריה (ספרים פתוחים + אחרונים)
+  let histQuery = '';
+  const norm = (x) => String(x || '').toLowerCase();
+  const histMatch = (name) => !histQuery || norm(name).indexOf(histQuery) >= 0;
+  function updateHistNoResults(openCount, recentCount) {
+    const none = !!histQuery && !openCount && !recentCount;
+    $('history-noresults').hidden = !none;
+    if (histQuery) { $('open-books-empty').hidden = true; $('recents-empty').hidden = true; }
+  }
   Fs.renderRecents = function () {
     [['recents', 'recents-empty', recents.length], ['welcome-recent-list', null, 6]].forEach(([listId, emptyId, max]) => {
       const ul = $(listId);
       ul.innerHTML = '';
-      recents.slice(0, max).forEach((r) => {
+      const isHist = listId === 'recents';
+      let shown = 0;
+      recents.filter((r) => !isHist || histMatch(r.name)).slice(0, max).forEach((r) => {
+        shown++;
         const sub = [r.type === 'book' ? PV.t('ספר מהספרייה') : PV.formatSize(r.size), r.page > 1 ? PV.t('עמוד {n}', { n: r.page }) : '', PV.relTime(r.ts)].filter(Boolean).join(' · ');
-        ul.appendChild(makeItem(recentIcon(r), r.name, sub, () => Fs.openRecent(r), [['dismiss', PV.t('הסרה מהרשימה'), () => {
+        ul.appendChild(makeItem(recentIcon(r), r.name, sub, () => { PV.closePopovers(); Fs.openRecent(r); }, [['dismiss', PV.t('הסרה מהרשימה'), () => {
           recents = recents.filter((x) => x.key !== r.key);
           PV.store.set('recents', recents);
           Fs.renderRecents();
         }]]));
       });
       if (emptyId) $(emptyId).hidden = recents.length > 0;
+      if (isHist) updateHistNoResults(lastOpenShown, shown);
     });
     $('welcome-recents').hidden = recents.length === 0;
   };
+  let lastOpenShown = 0;
 
   Fs.openRecent = async function (r) {
     const page = PV.settings.resume ? r.page : undefined;
@@ -216,7 +261,7 @@
       else PV.error(PV.t('לא ניתן לפתוח: {e}', { e: PV.errMsg(e) }));
     }
   };
-  $('btn-clear-recents').addEventListener('click', () => { recents = []; PV.store.set('recents', recents); Fs.renderRecents(); });
+  $('btn-clear-recents').addEventListener('click', (e) => { e.stopPropagation(); recents = []; PV.store.set('recents', recents); Fs.renderRecents(); });
 
   // ── ספרי PDF מהספרייה של אוצריא ───────────────────────────────────────
   /** q: { bookUid?, id?, bookId?, type?, name? } */
@@ -232,21 +277,50 @@
   };
 
   /** ספרי PDF שפתוחים עכשיו בקורא של אוצריא. */
-  Fs.refreshOpenBooks = async function () {
+  let openTabsCache = [];
+  function renderOpenBooks() {
     const ul = $('open-books');
     ul.innerHTML = '';
-    const st = PV.hasOtz() ? await PV.tryCall('reader.getCurrentState', {}) : null;
-    const tabs = (st && st.openTabs ? st.openTabs : []).filter((t) => t.type === 'pdf' && !t.isSelf);
+    const tabs = openTabsCache.filter((t) => histMatch(t.book || t.bookId));
     tabs.forEach((t) => {
       const sub = t.index ? PV.t('עמוד {n}', { n: t.index }) : '';
       ul.appendChild(makeItem('book_open', t.book || t.bookId, sub, () => {
+        PV.closePopovers();
         Fs.openLibraryBook({ id: t.id, bookId: t.bookId, type: 'pdf', name: t.book }, t.index || 1)
           .catch((e) => PV.error(PV.t('לא ניתן לפתוח את הספר: {e}', { e: PV.errMsg(e) })));
       }));
     });
-    $('open-books-empty').hidden = tabs.length > 0;
-    return tabs;
+    $('open-books-empty').hidden = openTabsCache.length > 0;
+    lastOpenShown = tabs.length;
+    updateHistNoResults(tabs.length, $('recents').children.length);
+  }
+  Fs.refreshOpenBooks = async function () {
+    const st = PV.hasOtz() ? await PV.tryCall('reader.getCurrentState', {}) : null;
+    openTabsCache = (st && st.openTabs ? st.openTabs : []).filter((t) => t.type === 'pdf' && !t.isSelf);
+    renderOpenBooks();
+    return openTabsCache;
   };
+
+  // רשימה נפתחת (סמל ההיסטוריה בסרגל הכלים)
+  PV.bindPopover($('btn-history'), $('history-menu'));
+  $('btn-history').addEventListener('click', () => {
+    const open = $('history-menu').classList.contains('open');
+    $('btn-history').classList.toggle('active', open);
+    if (!open) return;
+    histQuery = ''; $('history-search').value = '';
+    renderOpenBooks(); Fs.renderRecents();
+    Fs.refreshOpenBooks();
+    setTimeout(() => $('history-search').focus({ preventScroll: true }), 40);
+  });
+  document.addEventListener('click', () => $('btn-history').classList.remove('active'));
+  $('history-search').addEventListener('input', () => {
+    histQuery = norm($('history-search').value.trim());
+    renderOpenBooks(); Fs.renderRecents();
+  });
+  $('history-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('history-search').value) { e.stopPropagation(); $('history-search').value = ''; histQuery = ''; renderOpenBooks(); Fs.renderRecents(); }
+  });
+  $('btn-refresh-tabs').addEventListener('click', (e) => { e.stopPropagation(); Fs.refreshOpenBooks(); });
 
   // ── התיקיות שלי ───────────────────────────────────────────────────────
   let folders = [];
@@ -262,7 +336,9 @@
       if (!r || r.cancelled) return;
       if (!folders.some((f) => f.folderToken === r.folderToken)) folders.push({ folderToken: r.folderToken, name: r.name, path: r.path });
       await PV.store.set('folders', folders);
+      folderIndex = null;
       Fs.renderFolders();
+      if ($('folders-search').value.trim()) runFolderSearch();
       PV.emit('show-files');
       PV.toast(PV.t('התיקייה "{n}" נוספה', { n: r.name }));
       Fs.syncLibrary();
@@ -275,112 +351,190 @@
     folders = folders.filter((x) => x.folderToken !== f.folderToken);
     await PV.store.set('folders', folders);
     PV.tryCall('fs.revokeFolder', { folderToken: f.folderToken });
+    folderIndex = null;
+    Object.keys(treeOpen).forEach((k) => { if (k.indexOf(f.folderToken + '|') === 0) delete treeOpen[k]; });
     Fs.renderFolders();
+    if ($('folders-search').value.trim()) runFolderSearch();
     Fs.syncLibrary();
+    PV.toast(PV.t('התיקייה \"{n}\" הוסרה מהרשימה', { n: f.name }));
   }
+
+  // מצב פתיחה של צמתי העץ (נשמר בין ציורים מחדש). תיקיות ראשיות פתוחות כברירת מחדל.
+  const treeOpen = {};
+  const nodeKey = (f, path) => f.folderToken + '|' + path;
+  function fileIcon(name) { const k = kindOf(name); return k === 'pdf' ? 'document_pdf' : (k === 'image' || k === 'tiff') ? 'image' : 'document'; }
 
   Fs.renderFolders = function () {
     const ul = $('folders');
     ul.innerHTML = '';
-    folders.forEach((f) => ul.appendChild(folderNode(f, '', f.name, f.path)));
+    folders.forEach((f) => ul.appendChild(folderNode(f, '', f.name, 0)));
     $('folders-empty').hidden = folders.length > 0;
-    $('folder-search').hidden = folders.length === 0;
-    folderIndex = null;
-    if ($('folder-search').value.trim()) runFolderSearch();
+    $('folders-search').closest('.folders-bar').classList.toggle('no-folders', folders.length === 0);
   };
-
-  // ── חיפוש ספר (קובץ) בתוך התיקיות שהוכנסו ───────────────────────────
-  let folderIndex = null, indexing = null, searchTimer = 0;
-  const normName = (x) => String(x || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').replace(/[_\-.]+/g, ' ');
-  async function buildFolderIndex() {
-    const idx = [];
-    for (const f of folders) {
-      const queue = [{ path: '', depth: 0, cat: [f.name] }];
-      while (queue.length && idx.length < 30000) {
-        const cur = queue.shift();
-        let d;
-        try { d = await PV.call('fs.listUserFolder', { folderToken: f.folderToken, path: cur.path }); } catch (e) { continue; }
-        for (const en of (d && d.entries) || []) {
-          if (en.type === 'dir') { if (cur.depth < 8) queue.push({ path: en.path, depth: cur.depth + 1, cat: cur.cat.concat(en.name) }); continue; }
-          if (!kindOf(en.name)) continue;
-          idx.push({ f, path: en.path, name: en.name, size: en.size, where: cur.cat.join(' › '), key: normName(en.name) });
-        }
-      }
-    }
-    return idx;
-  }
-  async function runFolderSearch() {
-    const q = normName($('folder-search').value).trim();
-    const res = $('folder-results');
-    $('folders').hidden = !!q;
-    res.hidden = !q;
-    if (!q) return;
-    res.innerHTML = '';
-    if (!folderIndex) {
-      const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('סורק את התיקיות…'); res.appendChild(e);
-      if (!indexing) indexing = buildFolderIndex().then((x) => { folderIndex = x; indexing = null; });
-      await indexing;
-      if (normName($('folder-search').value).trim() !== q) return;
-      res.innerHTML = '';
-    }
-    const words = q.split(/\s+/).filter(Boolean);
-    const hits = folderIndex.filter((it) => words.every((w) => it.key.includes(w))).slice(0, 300);
-    hits.forEach((it) => {
-      const k = kindOf(it.name);
-      const li = document.createElement('li');
-      li.appendChild(makeItem(k === 'pdf' ? 'document_pdf' : k === 'image' || k === 'tiff' ? 'image' : 'document', it.name, it.where,
-        () => Fs.openFolderFile(it.f.folderToken, it.path, it.name)));
-      res.appendChild(li);
-    });
-    if (!hits.length) { const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('לא נמצאו קבצים בשם הזה'); res.appendChild(e); }
-  }
-  Fs.initFolderSearch = function () {
-    const inp = $('folder-search');
-    inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runFolderSearch, 200); });
-    inp.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { inp.value = ''; runFolderSearch(); }
-      if (e.key === 'Enter') { const first = $('folder-results').querySelector('.list-item'); if (first) first.click(); }
-    });
-  };
-  function folderNode(f, path, label, sub) {
+  function folderNode(f, path, label, depth) {
+    const key = nodeKey(f, path), isRoot = path === '';
     const li = document.createElement('li');
-    const row = makeItem('folder', label, sub, toggle, path === '' ? [['delete', PV.t('הסרת התיקייה'), () => removeFolder(f)]] : null);
+    li.className = 'tree-node';
+    const row = makeItem('folder', label, '', toggle, null);
+    row.classList.add('tree-row');
+    row.style.paddingInlineStart = (0.4 + depth * 1.05) + 'em';
+    const chev = PV.icon('chevron_down', 'tree-chevron');
+    row.insertBefore(chev, row.firstChild);
+    row.setAttribute('role', 'treeitem');
+    if (isRoot) {
+      row.title = f.path || label;
+      row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showFolderCtx(e, f); });
+    }
     const kids = document.createElement('ul');
     kids.className = 'list';
-    kids.hidden = true;
+    kids.setAttribute('role', 'group');
     let loaded = false;
-    async function toggle() {
-      kids.hidden = !kids.hidden;
-      if (!kids.hidden && !loaded) {
-        loaded = true;
-        kids.innerHTML = '';
-        try {
-          const d = await PV.call('fs.listUserFolder', { folderToken: f.folderToken, path });
-          const entries = (d && d.entries) || [];
-          entries.forEach((en) => {
-            if (en.type === 'dir') kids.appendChild(folderNode(f, en.path, en.name, ''));
-            else if (kindOf(en.name)) {
-              const li2 = document.createElement('li');
-              li2.appendChild(makeItem(kindOf(en.name) === 'pdf' ? 'document_pdf' : kindOf(en.name) === 'image' || kindOf(en.name) === 'tiff' ? 'image' : 'document',
-                en.name, PV.formatSize(en.size), () => Fs.openFolderFile(f.folderToken, en.path, en.name)));
-              kids.appendChild(li2);
-            }
-          });
-          if (!kids.children.length) {
-            const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('אין כאן קבצים נתמכים'); kids.appendChild(e);
+    const isOpen = () => (key in treeOpen ? treeOpen[key] : isRoot);
+    function sync() {
+      const open = isOpen();
+      kids.hidden = !open;
+      li.classList.toggle('collapsed', !open);
+      row.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    async function load() {
+      if (loaded) return;
+      loaded = true;
+      kids.innerHTML = '';
+      try {
+        const d = await PV.call('fs.listUserFolder', { folderToken: f.folderToken, path });
+        const entries = (d && d.entries) || [];
+        entries.forEach((en) => {
+          if (en.type === 'dir') kids.appendChild(folderNode(f, en.path, en.name, depth + 1));
+          else if (kindOf(en.name)) {
+            const li2 = document.createElement('li');
+            const r2 = makeItem(fileIcon(en.name), en.name, PV.formatSize(en.size), () => Fs.openFolderFile(f.folderToken, en.path, en.name));
+            r2.style.paddingInlineStart = (0.4 + (depth + 1) * 1.05) + 'em';
+            const sp = document.createElement('span'); sp.className = 'tree-spacer'; r2.insertBefore(sp, r2.firstChild);
+            li2.appendChild(r2);
+            kids.appendChild(li2);
           }
-          if (d && d.truncated) PV.toast(PV.t('בתיקייה יותר מ-2000 פריטים — מוצגים הראשונים'));
-        } catch (e) {
-          loaded = false;
-          const er = document.createElement('li'); er.className = 'panel-empty';
-          er.textContent = e && e.code === 'error.not_found' ? PV.t('התיקייה אינה זמינה כרגע (אולי כונן שנותק)') : PV.t('שגיאה: {e}', { e: PV.errMsg(e) });
-          kids.appendChild(er);
+        });
+        if (!kids.children.length && !isRoot) { li.hidden = true; return; } // תיקייה ריקה מקבצים נתמכים — מוסתרת
+        if (!kids.children.length) {
+          const e = document.createElement('li'); e.className = 'panel-empty'; e.textContent = PV.t('אין כאן קבצים נתמכים'); kids.appendChild(e);
         }
+        if (d && d.truncated) PV.toast(PV.t('בתיקייה יותר מ-2000 פריטים — מוצגים הראשונים'));
+      } catch (e) {
+        loaded = false;
+        const er = document.createElement('li'); er.className = 'panel-empty';
+        er.textContent = e && e.code === 'error.not_found' ? PV.t('התיקייה אינה זמינה כרגע (אולי כונן שנותק)') : PV.t('שגיאה: {e}', { e: PV.errMsg(e) });
+        kids.appendChild(er);
       }
     }
+    function toggle() {
+      treeOpen[key] = !isOpen();
+      sync();
+      if (isOpen()) load();
+    }
+    sync();
+    if (isOpen()) load();
     li.append(row, kids);
     return li;
   }
+
+  // ── לחיצה ימנית על תיקייה ראשית: הסרה מהרשימה של התוסף ────────────────
+  let ctxFolder = null;
+  const fctx = $('folder-ctx');
+  function hideFolderCtx() { fctx.hidden = true; ctxFolder = null; }
+  function showFolderCtx(e, f) {
+    ctxFolder = f;
+    fctx.hidden = false;
+    const w = fctx.offsetWidth, h = fctx.offsetHeight;
+    fctx.style.left = Math.max(4, Math.min(e.clientX, window.innerWidth - w - 6)) + 'px';
+    fctx.style.top = Math.max(4, Math.min(e.clientY, window.innerHeight - h - 6)) + 'px';
+  }
+  fctx.querySelector('[data-fact="remove"]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const f = ctxFolder;
+    hideFolderCtx();
+    if (f) removeFolder(f);
+  });
+  document.addEventListener('click', hideFolderCtx);
+  window.addEventListener('blur', hideFolderCtx);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideFolderCtx(); });
+  $('sidebar').addEventListener('scroll', hideFolderCtx, true);
+
+  // ── חיפוש בכל התיקיות שנוספו ──────────────────────────────────────────
+  let folderIndex = null, indexing = null;
+  async function buildIndex() {
+    if (folderIndex) return folderIndex;
+    if (indexing) return indexing;
+    indexing = (async () => {
+      const entries = [];
+      let dirs = 0;
+      const crawl = async (f) => {
+        const queue = [{ path: '', depth: 0 }];
+        while (queue.length && entries.length < 30000) {
+          const cur = queue.shift();
+          let d;
+          try { d = await PV.call('fs.listUserFolder', { folderToken: f.folderToken, path: cur.path }); } catch (e) { continue; }
+          dirs++;
+          for (const en of (d && d.entries) || []) {
+            if (en.type === 'dir') { if (cur.depth < 8) queue.push({ path: en.path, depth: cur.depth + 1 }); continue; }
+            if (!kindOf(en.name)) continue;
+            const parent = /[\\/]/.test(en.path || '') ? String(en.path).replace(/[\\/][^\\/]*$/, '') : '';
+            entries.push({ f, path: en.path, name: en.name, size: en.size, where: [f.name].concat(parent ? parent.split(/[\\/]/) : []).join(' / ') });
+          }
+          if (dirs % 5 === 0) setResultsStatus(PV.t('סורק את התיקיות… נמצאו {n} קבצים', { n: entries.length }));
+        }
+      };
+      await Promise.all(folders.map(crawl));
+      folderIndex = entries;
+      return entries;
+    })();
+    try { return await indexing; } finally { indexing = null; }
+  }
+  function setResultsStatus(text) {
+    const ul = $('folder-results');
+    if ($('folders-search').value.trim() && ul.dataset.state !== 'done') {
+      ul.innerHTML = '';
+      const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = text; ul.appendChild(li);
+    }
+  }
+  let searchSeq = 0;
+  async function runFolderSearch() {
+    const raw = $('folders-search').value.trim();
+    const ul = $('folder-results');
+    const seq = ++searchSeq;
+    if (!raw) {
+      ul.hidden = true; ul.innerHTML = ''; ul.dataset.state = '';
+      $('folders').hidden = false;
+      $('folders-empty').hidden = folders.length > 0;
+      return;
+    }
+    $('folders').hidden = true;
+    $('folders-empty').hidden = true;
+    ul.hidden = false;
+    if (!folders.length) { ul.dataset.state = 'done'; ul.innerHTML = ''; const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = PV.t('עדיין לא נוספו תיקיות'); ul.appendChild(li); return; }
+    if (!folderIndex) { ul.dataset.state = ''; setResultsStatus(PV.t('סורק את התיקיות…')); }
+    const idx = await buildIndex();
+    if (seq !== searchSeq) return;
+    ul.dataset.state = 'done';
+    const tokens = norm(raw).split(/\s+/).filter(Boolean);
+    const hits = idx.filter((x) => { const hay = norm(x.name + ' ' + x.where); return tokens.every((t) => hay.indexOf(t) >= 0); });
+    ul.innerHTML = '';
+    hits.slice(0, 200).forEach((x) => {
+      const li = document.createElement('li');
+      const it = makeItem(fileIcon(x.name), x.name, x.where, () => Fs.openFolderFile(x.f.folderToken, x.path, x.name));
+      it.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); PV.toast(x.where + ' / ' + x.name, { info: true }); });
+      li.appendChild(it);
+      ul.appendChild(li);
+    });
+    if (!hits.length) { const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = PV.t('לא נמצאו קבצים תואמים'); ul.appendChild(li); }
+    else if (hits.length > 200) { const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = PV.t('מוצגות 200 התוצאות הראשונות מתוך {n} — צמצמו את החיפוש', { n: hits.length }); ul.appendChild(li); }
+  }
+  const debouncedSearch = PV.debounce(runFolderSearch, 250);
+  $('folders-search').addEventListener('input', debouncedSearch);
+  PV.listNav($('folders-search'), $('folder-results'));
+  PV.listNav($('history-search'), $('history-menu'));
+  $('folders-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('folders-search').value) { e.stopPropagation(); $('folders-search').value = ''; runFolderSearch(); }
+  });
 
   Fs.openFolderFile = async function (folderToken, path, name, page) {
     try {
@@ -444,13 +598,24 @@
       const entry = zip.file('word/document.xml');
       if (!entry) throw new Error('word/document.xml');
       const xml = await entry.async('string');
-      const lines = xml.split(/<\/w:p>/).map((p) => {
-        let t = '', m;
-        const re = /<w:t[^>]*>([^<]*)<\/w:t>|<w:tab\/>|<w:br\/>/g;
-        while ((m = re.exec(p))) t += m[1] !== undefined ? m[1] : (m[0] === '<w:tab/>' ? '\t' : '\n');
-        return dec(t);
+      // פסקאות עם הדגשות וכותרות (זול: לפי <w:b/> ו-pStyle של Heading/Title)
+      const blocks = xml.split(/<\/w:p>/).map((p) => {
+        const st = (p.match(/<w:pStyle w:val="([^"]+)"/) || [])[1] || '';
+        const hm = /^(?:heading|כותרת)\s*(\d)/i.exec(st) || (/^title$/i.test(st) ? [0, '1'] : null);
+        const runs = [];
+        p.split(/<\/w:r>/).forEach((r) => {
+          let t = '', m;
+          const re = /<w:t[^>]*>([^<]*)<\/w:t>|<w:tab\/>|<w:br\/>/g;
+          while ((m = re.exec(r))) t += m[1] !== undefined ? m[1] : (m[0] === '<w:tab/>' ? '\t' : '\n');
+          if (!t) return;
+          const b = /<w:b(?:\s+w:val="(?:1|true|on)")?\s*\/>/.test(r);
+          runs.push({ t: dec(t), b });
+        });
+        return { h: hm ? Math.min(+hm[1] || 1, 3) : 0, runs };
       });
-      return [{ title: '', text: lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() }];
+      while (blocks.length && !blocks[blocks.length - 1].runs.length) blocks.pop();
+      const text = blocks.map((b) => b.runs.map((r) => r.t).join('')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      return [{ title: '', text, blocks }];
     }
     if (kind === 'pptx') {
       const files = Object.keys(zip.files).filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
