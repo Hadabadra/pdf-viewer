@@ -438,6 +438,8 @@
       try { r = await PV.call('feedback.report', { details: ('[צופה PDF+OCR ' + PV.version + ']\n' + msg).slice(0, 5000), reportType: 'other' }); }
       catch (e) { r = null; }
       if (r === 'cancelled') { st.textContent = PV.t('השליחה בוטלה'); return; }
+      /* #70 (אחת שאלתי): גם ל-GitHub כ-issue ציבורי, דרך הגשר והמתווך (אם הגשר מותקן) */
+      try { await PV.bridge.call('/sys/feedback', { text: msg.slice(0, 5000), plugin: 'צופה PDF+OCR', version: PV.version, repo: 'pdf-viewer' }, 8000); } catch (e) { /* אין גשר / גשר ישן */ }
       if (r !== 'sent' && r !== 'queued') {
         await PV.call('feedback.sendEmail', { to: 'E0548433917@outlook.com', subject: 'משוב על צופה PDF+OCR ' + PV.version, body: msg, includeSystemInfo: true });
       }
