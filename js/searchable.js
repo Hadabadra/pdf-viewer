@@ -5,7 +5,7 @@
   const PV = window.PV, $ = PV.$, V = PV.viewer, O = PV.ocr, Fs = PV.files, B = PV.bridge;
   const S = (PV.searchable = {});
 
-  PV.BRIDGE_WRITE_MIN = '3.4.0'; // /fs/write-binary (עם יצירת תיקיות) ו-/fs/pick-save-file
+  PV.BRIDGE_WRITE_MIN = '1.0.0'; // /fs/write-binary (עם יצירת תיקיות) ו-/fs/pick-save-file
   const HOST_WRITE_MAX = 100 * 1024 * 1024 - 4096; // מגבלת אוצריא לכתיבה דרך חלון השמירה שלה (100MB)
   const IMG_PT = 72 / 150; // תמונה בלי DPI ידוע: מניחים 150 DPI
   const DEF = { src: 'doc', ask: true, out: 'same', suffix: ' - OCR', outPath: '', outName: '', replace: true, skipDigital: true, sub: true, engine: '' };

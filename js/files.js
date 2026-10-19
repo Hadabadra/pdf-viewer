@@ -241,6 +241,7 @@
   };
   /** 5.7.0: נתיב מלא בדיסק של המסמך הנוכחי (רק לקובץ מתיקייה שנוספה), לפתיחה בתוכנה אחרת דרך הגשר */
   Fs.diskPath = function () {
+    if (V.doc && V.doc.diskPath) return V.doc.diskPath;   // 5.8.0: קובץ שנפתח דרך הגשר ("פתח באמצעות", חיפוש במחשב)
     const s = V.doc && V.doc.source;
     if (!s || s.type !== 'folder' || !s.path) return null;
     const f = folders.find((x) => x.folderToken === s.folderToken);

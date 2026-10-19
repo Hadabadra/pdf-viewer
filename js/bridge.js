@@ -1,5 +1,6 @@
 /* צופה PDF+OCR — לקוח לגשר אוצריא (שירות Windows מקומי).
-   מגרסה 3.6.0: צימוד לגשר (נדרש מגשר 3.0), וזיהוי טקסט דרך כלי החיתוך של Windows (גשר 3.1.0 ומעלה).
+   מגרסה 3.6.0: צימוד לגשר, וזיהוי טקסט דרך כלי החיתוך של Windows.
+   5.8.0: הגשר ("אחת שאלתי") התחיל מספור חדש מ-1.0.0, שהוא חדש מכל 3.x — ראו versionLt.
    ה-OCR של Windows (Windows.Media.Ocr) הוסר: אין לו עברית. */
 (function () {
   'use strict';
@@ -7,8 +8,9 @@
 
   const PORTS = [47917, 47918, 47919, 47920, 47921];
   const HOST = 'http://127.0.0.1:';
-  PV.BRIDGE_URL = 'https://github.com/e0548433917-gif/otzaria-system-tools/releases/latest';
-  PV.BRIDGE_MIN = '3.1.0';
+  PV.BRIDGE_URL = 'https://github.com/Hadabadra/achat-shaalti/releases/latest';
+  PV.BRIDGE_MIN = '1.0.1';
+  PV.BRIDGE_OPENWITH_MIN = '1.0.2'; // "פתח באמצעות" של Windows ← התוסף (/pdf/inbox)
 
   const B = (PV.bridge = { port: null, info: null });
 
@@ -102,8 +104,10 @@
   };
 
   /** האם גרסת הגשר a נמוכה מ-b (למשל "3.0.0" < "3.1.0") */
+  // המספור החדש של הגשר (1.x/2.x, מ-18.10.2026) חדש מהמספור הישן (3.x) — ממפים אותו מעל, כדי ש-1.0.1 לא ייחשב "ישן"
+  const norm = (v) => { const n = String(v || '0').split('.').map(Number); if (n[0] >= 1 && n[0] < 3) n[0] += 100; return n; };
   B.versionLt = function (a, b) {
-    const x = String(a || '0').split('.').map(Number), y = String(b).split('.').map(Number);
+    const x = norm(a), y = norm(b);
     for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); }
     return false;
   };
@@ -263,6 +267,50 @@
 
   /** חיפוש קובץ במחשב תוך כדי הקלדה: שורת חיפוש במסך הפתיחה ורשימה נפתחת */
   const EXT = ['pdf', 'docx', 'md', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'tif', 'tiff'];   // אותם סוגים כמו בחיפוש בתיקיות
+  /** פתיחת קובץ לפי נתיב מלא: בתוך "התיקיות שלי" — דרך אוצריא; אחרת קריאה דרך הגשר.
+   *  הנתיב נשמר במסמך (V.doc.diskPath) כדי שכל היכולות שתלויות בנתיב (פתיחה בתוכנה אחרת) יעבדו גם כאן. */
+  B.openDiskFile = async function (path, name) {
+    name = name || String(path).split(/[\\/]/).pop();
+    try { if (PV.files.openByPath && await PV.files.openByPath(path, name)) return true; } catch (e) { /* ממשיכים לגשר */ }
+    let cancelled = false, blob = null;
+    PV.progress.show(PV.t('טוען…'), () => { cancelled = true; });
+    try {
+      blob = await B.readBlob(path, {
+        cancelled: () => cancelled,
+        onProgress: (f, a, t) => PV.progress.update(PV.t('טוען… {a} מתוך {t}', { a: PV.formatSize(a), t: PV.formatSize(t) }), f),
+      });
+    } catch (e) { if (!cancelled) PV.error(PV.errMsg(e)); }
+    PV.progress.hide();
+    if (!blob) return false;
+    await PV.files.openBlob(blob, name, { source: null });
+    if (PV.viewer && PV.viewer.doc) PV.viewer.doc.diskPath = path;
+    return true;
+  };
+
+  // ── "פתח באמצעות ← צופה PDF+OCR" ב-Windows (גשר 1.0.2+) ──────────────────
+  // הגשר שם את הקובץ בתור ופותח את אוצריא בתוסף; כאן שולפים את התור בעלייה, בחזרה לתוסף ובבדיקה תקופתית.
+  let inboxBusy = false;
+  B.checkInbox = async function () {
+    if (inboxBusy || !PV.hasOtz()) return;
+    inboxBusy = true;
+    try {
+      if (!B.port && !(await B.probe())) return;
+      if (B.versionLt(B.info && B.info.version, PV.BRIDGE_OPENWITH_MIN)) return;
+      const r = await B.call('/pdf/inbox/list', {}, 8000);
+      const items = (r && r.items) || [];
+      if (!items.length) return;
+      await B.call('/pdf/inbox/ack', { ids: items.map((x) => x.id) }, 8000).catch(() => {});
+      PV.tryCall('plugin.openSelf', {});
+      for (const it of items) await B.openDiskFile(it.path, it.name);
+    } catch (e) { /* הגשר לא זמין — ננסה שוב */ }
+    finally { inboxBusy = false; }
+  };
+  B.startInbox = function () {
+    B.checkInbox();
+    setInterval(() => { if (!document.hidden) B.checkInbox(); }, 3000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) B.checkInbox(); });
+  };
+
   B.initLiveSearch = function (input, ul, wrap) {
     if (!input || !ul) return;
     if (!PV.hasOtz()) { if (wrap) wrap.hidden = true; return; }
@@ -279,18 +327,7 @@
     }
     async function open(h) {
       close(); input.value = '';
-      // קובץ שנמצא בתוך אחת התיקיות שהוספתם — נפתח דרך אוצריא (בלי הגבלת גודל ובלי קריאה דרך הגשר)
-      try { if (PV.files.openByPath && await PV.files.openByPath(h.path, h.name)) return; } catch (e) { /* ממשיכים לגשר */ }
-      let cancelled = false, blob = null;
-      PV.progress.show(PV.t('טוען…'), () => { cancelled = true; });
-      try {
-        blob = await B.readBlob(h.path, {
-          cancelled: () => cancelled,
-          onProgress: (f, a, t) => PV.progress.update(PV.t('טוען… {a} מתוך {t}', { a: PV.formatSize(a), t: PV.formatSize(t) }), f),
-        });
-      } catch (e) { if (!cancelled) PV.error(PV.errMsg(e)); }
-      PV.progress.hide();
-      if (blob) await PV.files.openBlob(blob, h.name, { source: null });
+      await B.openDiskFile(h.path, h.name);
     }
     async function run() {
       const text = input.value.trim();

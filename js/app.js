@@ -396,9 +396,9 @@
   function showOverlayTab(name) {
     document.querySelectorAll('[data-otab]').forEach((t) => t.classList.toggle('active', t.dataset.otab === name));
     document.querySelectorAll('[data-opanel]').forEach((p) => { p.hidden = p.dataset.opanel !== name; });
-    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות', searchable: 'PDF עם שכבת טקסט (OCR)' }[name]);
+    $('overlay-title').textContent = PV.t({ settings: 'הגדרות', ocr: 'זיהוי טקסט (OCR)', about: 'אודות', searchable: 'PDF עם שכבת טקסט (OCR)', pdftools: 'כלי PDF' }[name]);
     const tabsBar = document.querySelector('#overlay .tabs');
-    if (tabsBar) tabsBar.hidden = name === 'searchable';
+    if (tabsBar) tabsBar.hidden = name === 'searchable' || name === 'pdftools';
     if (name === 'ocr') renderLangs();
   }
   // PDF עם שכבת טקסט — מסמך או תיקייה
@@ -409,6 +409,7 @@
     PV.searchable.refreshUi();
     openOverlay('searchable');
   }
+  PV.openOverlay = openOverlay;
   $('overlay-scrim').addEventListener('click', closeOverlay);
   $('overlay-close').addEventListener('click', closeOverlay);
   document.querySelectorAll('[data-otab]').forEach((t) => t.addEventListener('click', () => showOverlayTab(t.dataset.otab)));
@@ -813,7 +814,8 @@
     O2.on('plugin.page_opened', onPageOpened);
     O2.on('app.command', onCommand);
     O2.on('library.providerBook.openRequested', (ev) => { PV.tryCall('plugin.openSelf', {}); Fs.openProviderBook(ev); });   // 5.7.0: לעבור ממסך הספרייה לתוסף
-    O2.on('plugin.resumed', () => { if (sidebarTab.current === 'files') Fs.refreshOpenBooks(); });
+    O2.on('plugin.resumed', () => { if (sidebarTab.current === 'files') Fs.refreshOpenBooks(); if (PV.bridge && PV.bridge.checkInbox) PV.bridge.checkInbox(); });
+    if (PV.bridge && PV.bridge.startInbox) setTimeout(() => PV.bridge.startInbox(), 800);   // 5.8.0: "פתח באמצעות" של Windows
     // גיבוי: אם ה-boot כבר עבר לפני שהסקריפט נרשם
     setTimeout(() => { if (!booted) PV.tryCall('app.getTheme', {}).then((t) => boot({ theme: t })); }, 1500);
   } else {

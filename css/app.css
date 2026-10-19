@@ -651,3 +651,8 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
 .busy-dlg-card h3 { margin: 0 0 8px; }
 .busy-dlg-card p { margin: 0 0 16px; line-height: 1.5; }
 .busy-dlg-actions { display: flex; gap: 8px; justify-content: flex-start; flex-wrap: wrap; }
+
+/* 5.8.0 — כלי PDF */
+.pdftool summary { display: flex; align-items: center; gap: 0.5em; cursor: pointer; padding: 0.25em 0; }
+.pdftool[open] summary { margin-bottom: 0.5em; }
+.pdftool .btn { margin-top: 0.5em; }
