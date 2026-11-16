@@ -299,28 +299,78 @@
     return Math.round(((best[0] + best[1]) / 2) * W / sw);
   };
 
+  /** מקום הפיצול בין טורים (x בפיקסלים של הקנבס) או null אם זה טור אחד. קודם הגלאי הדק (columns.js: מרווח אמיתי, גם 1-3 פיקסלים,
+   *  עמיד לקו הפרדה מודפס ולכותרת שחוצה), ואם לא מצא — הגלאי הגס. אין יותר חיתוך "באמצע הדף" בכוח. */
+  O.detectCut = function (src) {
+    let c = null;
+    try { c = PV.columns ? PV.columns.findGutterCanvas(src) : null; } catch (e) { c = null; }
+    if (c == null) { try { c = O.findGutter(src); } catch (e) { c = null; } }
+    return (c != null && c > 8 && c < src.width - 8) ? c : null;
+  };
+  // „גודל עמוד“ — רק בו מפעילים פריסה אוטומטית (psm 3). אזור קטן / שורה בודדת נשארים בגוש אחד (psm 6) כמו קודם, כי psm 3 עלול להחזיר ריק על תמונה קטנה
+  const pageLike = (c) => !!c && c.width >= 400 && c.height >= 400;
+  const cropCanvas = (src, x, w) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = src.height;
+    c.getContext('2d').drawImage(src, x, 0, w, src.height, 0, 0, w, src.height);
+    c._noSplit = true;   // חתיכה שכבר פוצלה — לא מפצלים אותה שוב (במצב מעורב ובשכבת הטקסט Tesseract נקרא על החתיכות)
+    return c;
+  };
+  const cropRect = (src, r) => {
+    const w = Math.max(1, r.x1 - r.x0), h = Math.max(1, r.y1 - r.y0), c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(src, r.x0, r.y0, w, h, 0, 0, w, h);
+    c._noSplit = true;
+    return c;
+  };
+  /** אזורי קריאה של עמוד לפי סדר (כותרת / טור ימין / טור שמאל / כותרת פנימית …) או null — אז ממשיכים כמו קודם. דורש את האפשרות „זיהוי אוטומטי של טורים“. */
+  O.regionsFor = function (src) {
+    if (!(PV.settings.ocrCols && src instanceof HTMLCanvasElement && !src._noSplit && src.width > 200 && PV.columns && PV.columns.readingRegionsCanvas)) return null;
+    try { return PV.columns.readingRegionsCanvas(src); } catch (e) { return null; }
+  };
+  const shiftQ = (q, dx, dy) => q.map((v, i) => (i % 2 === 0 ? v + dx : v + dy));
+  /** מריץ fn על כל אזור קריאה בנפרד (בסדר) ומחזיר מילים { text, q } בקואורדינטות של הקנבס המקורי. בלי אזורים — fn על הקנבס כולו, כמו קודם. */
+  O.byRegions = async function (canvas, fn, onProgress) {
+    const regs = O.regionsFor(canvas);
+    if (!regs) return fn(canvas, onProgress);
+    const out = [];
+    for (let k = 0; k < regs.length; k++) {
+      const r = regs[k];
+      const ws = await fn(cropRect(canvas, r), onProgress ? (p) => onProgress((k + p) / regs.length) : null);
+      for (const w of ws || []) out.push(Object.assign({}, w, { q: shiftQ(w.q, r.x0, r.y0) }));
+    }
+    return out;
+  };
   /** opts.noCols — בלי פיצול לטורים (אזור שסומן ידנית: המשתמש כבר בחר מה לזהות). */
   O.recognize = async function (source, onProgress, opts) {
     const o = opts || {};
+    // עמוד סרוק מסובב (מעל ~0.8°, ובעדות חזקה) — מיישרים לפני הזיהוי; אחרת Tesseract והחיתוך לטורים נכשלים. לא נוגעים בעמוד ישר, באזור שסומן ידנית ובמנוע Windows
+    if (!o.noCols && PV.settings.ocrDeskew !== false && currentEngine() !== 'snip' && source instanceof HTMLCanvasElement && pageLike(source) && PV.columns && PV.columns.deskewCanvas) {
+      try { const d = PV.columns.deskewCanvas(source); if (d) source = d.canvas; } catch (e) { /* ממשיכים בלי יישור */ }
+    }
     if (PV.settings.ocrCols && !o.noCols && source instanceof HTMLCanvasElement && source.width > 200) {
-      const W = source.width, H = source.height;
-      // Tesseract: פיצול באמצע (כמו קודם). Windows: מפצלים רק אם יש רווח ברור בין הטורים, ובמקום הרווח — כדי לא לחתוך מילים
-      let cut = Math.floor(W / 2);
-      if (currentEngine() === 'snip') cut = O.findGutter(source);
+      const regs = O.regionsFor(source);
+      if (regs) {   // כותרת עמוד, טור ימין, טור שמאל, כותרת פנימית, טור ימין, טור שמאל … — כל אזור בנפרד, לפי סדר הקריאה
+        const parts = [];
+        for (let k = 0; k < regs.length; k++) {
+          parts.push(await O.recognizeOne(cropRect(source, regs[k]), onProgress ? (p) => onProgress((k + p) / regs.length) : null, { psm: '6' }));
+        }
+        return parts.filter(Boolean).join('\n\n');
+      }
+      const W = source.width;
+      const cut = O.detectCut(source);   // חיתוך במרווח האמיתי בין הטורים — לא באמצע הדף
       if (cut != null) {
         const parts = [];
-        for (const [x, w] of [[cut, W - cut], [0, cut]]) {
-          const c = document.createElement('canvas');
-          c.width = w; c.height = H;
-          c.getContext('2d').drawImage(source, x, 0, w, H, 0, 0, w, H);
-          parts.push(await O.recognizeOne(c, onProgress ? (p) => onProgress(p / 2 + (parts.length ? 0.5 : 0)) : null));
+        for (const [x, w] of [[cut, W - cut], [0, cut]]) {   // ימין ואז שמאל
+          parts.push(await O.recognizeOne(cropCanvas(source, x, w), onProgress ? (p) => onProgress(p / 2 + (parts.length ? 0.5 : 0)) : null, { psm: '6' }));
         }
         return parts.filter(Boolean).join('\n\n');
       }
     }
-    return O.recognizeOne(source, onProgress);
+    return O.recognizeOne(source, onProgress, { psm: (!o.noCols && pageLike(source)) ? '3' : '6' });
   };
-  O.recognizeOne = async function (source, onProgress) {
+  /** ropts.psm — מצב פענוח של Tesseract. '3' (פריסה אוטומטית) לעמוד שלם שלא פוצל; '6' (גוש אחד) לטור בודד, לאזור קטן ולשורה. ב-tesseract.js ברירת המחדל הייתה '6' (גוש אחד), ולכן דף בשני טורים נקרא כשורות מעורבבות. */
+  O.recognizeOne = async function (source, onProgress, ropts) {
     if (currentEngine() === 'snip' && source instanceof HTMLCanvasElement) {
       if (O.mixedOn()) {
         // מעורב עם Windows: Windows לעברית + Tesseract (מודל רש"י) לשורות ברש"י. אם המנוע הישיר לא זמין — Tesseract מעורב
@@ -343,6 +393,7 @@
     O.lastRun = { engine: 'tesseract', kind, hebModel: usedHeb[tagFor(kind)] || hebPart(), rashiModel: usedRashi[tagFor(kind)] || rashiPart() };
     progressHook = onProgress || null;
     try {
+      await w.setParameters({ tessedit_pageseg_mode: (ropts && ropts.psm) || '6' });
       const { data } = await w.recognize(source);
       return tidy(data.text);
     } finally { progressHook = null; }
@@ -351,16 +402,33 @@
   /** מילים מ-Tesseract עם ביטחון: [{ text, conf, x0,y0,x1,y1, cx, cy, i }] בסדר הקריאה של המנוע */
   async function tesseractWords(canvas, kind, onProgress) {
     const w = await getWorker(kind);
-    progressHook = onProgress || null;
     try {
-      const { data } = await w.recognize(canvas);
-      const raw = [];
-      if (Array.isArray(data.words) && data.words.length) raw.push(...data.words);
-      else (data.blocks || []).forEach((b) => (b.paragraphs || []).forEach((p) => (p.lines || []).forEach((l) => (l.words || []).forEach((x) => raw.push(x)))));
-      return raw.filter((x) => x && x.bbox && String(x.text || '').trim()).map((x, i) => {
-        const b = x.bbox;
-        return { text: String(x.text).trim(), conf: Number(x.confidence) || 0, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, i };
-      });
+      // אותה פריסה כמו בזיהוי טקסט: פיצול לטורים במרווח האמיתי, וכל טור נקרא בנפרד (המילים מוזזות חזרה למקומן בעמוד)
+      let parts = [{ x: 0, y: 0, w: canvas.width, h: canvas.height }];
+      if (PV.settings.ocrCols && canvas instanceof HTMLCanvasElement && !canvas._noSplit && canvas.width > 200) {
+        const regs = O.regionsFor(canvas);
+        if (regs) parts = regs.map((r) => ({ x: r.x0, y: r.y0, w: r.x1 - r.x0, h: r.y1 - r.y0 }));
+        else {
+          const cut = O.detectCut(canvas);
+          if (cut != null) parts = [{ x: cut, y: 0, w: canvas.width - cut, h: canvas.height }, { x: 0, y: 0, w: cut, h: canvas.height }];
+        }
+      }
+      const out = [];
+      for (let k = 0; k < parts.length; k++) {
+        const x = parts[k].x, y = parts[k].y;
+        const src = parts.length > 1 ? cropRect(canvas, { x0: x, y0: y, x1: x + parts[k].w, y1: y + parts[k].h }) : canvas;
+        progressHook = onProgress ? (p) => onProgress((k + p) / parts.length) : null;
+        await w.setParameters({ tessedit_pageseg_mode: (parts.length === 1 && pageLike(canvas) && !canvas._noSplit) ? '3' : '6' });
+        const { data } = await w.recognize(src);
+        const raw = [];
+        if (Array.isArray(data.words) && data.words.length) raw.push(...data.words);
+        else (data.blocks || []).forEach((bl) => (bl.paragraphs || []).forEach((p) => (p.lines || []).forEach((l) => (l.words || []).forEach((wd) => raw.push(wd)))));
+        raw.filter((wd) => wd && wd.bbox && String(wd.text || '').trim()).forEach((wd) => {
+          const bb = wd.bbox;
+          out.push({ text: String(wd.text).trim(), conf: Number(wd.confidence) || 0, x0: bb.x0 + x, y0: bb.y0 + y, x1: bb.x1 + x, y1: bb.y1 + y, cx: (bb.x0 + bb.x1) / 2 + x, cy: (bb.y0 + bb.y1) / 2 + y, i: out.length });
+        });
+      }
+      return out;
     } finally { progressHook = null; }
   }
   const wordQ = (w) => [w.x0, w.y0, w.x1, w.y0, w.x1, w.y1, w.x0, w.y1];
@@ -427,8 +495,10 @@
   }
   /** מילים עם מיקום לשכבת טקסט ב-PDF, במצב מעורב עם Windows */
   O.hybridLayout = async function (canvas, onProgress) {
-    const lines = await hybridLines(canvas, onProgress);
-    return lines.flatMap((l) => l.words).filter((w) => w && w.text && w.q && w.q.length === 8);
+    return O.byRegions(canvas, async (c, prog) => {
+      const lines = await hybridLines(c, prog);
+      return lines.flatMap((l) => l.words).filter((w) => w && w.text && w.q && w.q.length === 8);
+    }, onProgress);
   };
   O.selfTest = async function () {
     const c = document.createElement('canvas');
@@ -743,10 +813,16 @@
     const x0 = rect.x * vp.width, x1 = (rect.x + rect.w) * vp.width;
     const y0 = rect.y * vp.height, y1 = (rect.y + rect.h) * vp.height;
     let out = '';
-    tc.items.forEach((it) => {
+    const ro = window.ReadOrder && window.ReadOrder.sequence(tc.items);
+    const sps = ro || !window.ReadOrder ? [] : window.ReadOrder.spaces(tc.items);
+    const seq = ro || tc.items.map((it, i) => ({ i, eol: !!it.hasEOL, sp: !!sps[i] }));
+    seq.forEach((ent) => {
+      const it = tc.items[ent.i];
       if (typeof it.str !== 'string' || !it.transform) return;
+      if (ent.sp && out && !/\s$/.test(out)) out += ' ';
       const [a, b, c, d, e, f] = it.transform;
-      const len = it.str.length;
+      const str = ro && ro.mirror ? window.ReadOrder.mirror(it.str) : it.str;
+      const len = str.length;
       if (len) {
         const sx = Math.hypot(a, b) || 1, sy = Math.hypot(c, d) || 1;
         const w = it.width || 0, h = it.height || sy;
@@ -756,10 +832,10 @@
           const px = e + (a / sx) * w * fr + (c / sy) * h * 0.35;
           const py = f + (b / sx) * w * fr + (d / sy) * h * 0.35;
           const [vx, vy] = vp.convertToViewportPoint(px, py);
-          if (vx >= x0 && vx <= x1 && vy >= y0 && vy <= y1) out += it.str[i];
+          if (vx >= x0 && vx <= x1 && vy >= y0 && vy <= y1) out += str[i];
         }
       }
-      if (it.hasEOL && out && !out.endsWith('\n')) out += '\n';
+      if (ent.eol && out && !out.endsWith('\n')) out += '\n';
     });
     return out.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   }
@@ -825,6 +901,35 @@
   }
   // עריכה ידנית: הטקסט הערוך (כפי שמוצג) הופך לטקסט המלא
   outEl.addEventListener('input', () => { rawText = O.getText(); updateFooter(); });
+  // 5.19.6: הדבקה לחלונית במצב עריכה — טקסט פשוט בלבד. בלי זה ההדבקה מעמוד ה-PDF מביאה איתה את העיצוב של שכבת הטקסט
+  // (צבע שקוף, מיקום מוחלט, גודל גופן), והמילים מופיעות שקופות ומחוץ לחלונית.
+  outEl.addEventListener('paste', (e) => {
+    if (outEl.getAttribute('contenteditable') !== 'true') return;
+    const cd = e.clipboardData;
+    if (!cd) return;
+    let text = cd.getData('text/plain');
+    if (!text) {
+      const html = cd.getData('text/html');
+      if (html) text = (new DOMParser().parseFromString(html, 'text/html').body.textContent || '');
+    }
+    if (!text && !cd.types.includes('text/html')) return;   // אין טקסט (למשל תמונה) — ברירת המחדל של הדפדפן
+    e.preventDefault();
+    if (!text) return;
+    // insertHTML של טקסט מוברח (ולא insertText): שומר שורות ריקות בדיוק כמו במקור (insertText מכפיל אותן ל-div-ים), ונשאר ניתן לביטול ב-Ctrl+Z
+    const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (!document.execCommand('insertHTML', false, esc)) {   // גיבוי: הוספה ידנית במקום הסמן
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && outEl.contains(sel.anchorNode)) {
+        const r = sel.getRangeAt(0);
+        r.deleteContents();
+        const t = document.createTextNode(text);
+        r.insertNode(t);
+        r.setStartAfter(t); r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+        outEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+  });
 
   async function copyText(silent) {
     const t = selectionIn(outEl) || O.getText();
@@ -875,6 +980,90 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   };
 
+  // ── 5.19.5: איחוד שורות לטקסט רציף, וייצוא לקובץ Word ─────────────────────
+  // רצף של מעברי שורה (כולל רווחים וטאבים סביבם, ושורות ריקות באמצע) מוחלף ברווח אחד.
+  const EOL = '(?:\\r\\n|[\\n\\r\\u2028\\u2029\\u0085\\u000b\\u000c])', BL = '[ \\t\\u00a0]*';
+  const EOL_RUN_RE = new RegExp(BL + EOL + '(?:' + BL + EOL + ')*' + BL, 'g');
+  O.joinText = (t) => String(t || '').replace(EOL_RUN_RE, ' ').trim();
+  O.joinLines = function () {
+    const src = rawText || '';
+    if (!src.trim()) { PV.toast(PV.t('אין טקסט לעיבוד')); return; }
+    const out = O.joinText(src);
+    if (!new RegExp(EOL).test(src)) { PV.toast(PV.t('אין מעברי שורה להחלפה')); return; }
+    rawText = out;
+    renderText();
+    updateFooter();
+    PV.emit('text');
+    PV.toast(PV.t('מעברי השורה הוחלפו ברווח'));
+  };
+
+  const xmlEsc = (s) => String(s)
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const WNS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  /** שורה → פסקה. פסקה עם אותיות עבריות/ערביות מקבלת כיוון מימין לשמאל (bidi + rtl). */
+  function docxParagraph(line) {
+    if (!line.trim()) return '<w:p/>';
+    const rtl = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/.test(line);
+    const rpr = rtl ? '<w:rPr><w:rtl/></w:rPr>' : '';
+    const runs = line.split('\t').map((seg, i) =>
+      (i ? '<w:r>' + rpr + '<w:tab/></w:r>' : '') + (seg ? '<w:r>' + rpr + '<w:t xml:space="preserve">' + xmlEsc(seg) + '</w:t></w:r>' : '')
+    ).join('');
+    return '<w:p><w:pPr>' + (rtl ? '<w:bidi/>' : '') + '</w:pPr>' + runs + '</w:p>';
+  }
+  O.buildDocx = async function (text) {
+    const zip = new window.JSZip();
+    const put = (name, data) => zip.file(name, data, { createFolders: false });   // בלי רשומות תיקיות בחבילה
+    const paras = String(text).replace(/\r\n?/g, '\n').split('\n').map(docxParagraph).join('');
+    put('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+      '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+    put('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+    put('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    put('word/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ' + WNS + '>' +
+      '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Arial"/>' +
+      '<w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="en-US" w:eastAsia="en-US" w:bidi="he-IL"/></w:rPr></w:rPrDefault>' +
+      '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
+      '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>');
+    put('word/document.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ' + WNS + '><w:body>' + paras +
+      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>');
+    return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', compression: 'DEFLATE' });
+  };
+  /** ייצוא טקסט החלונית (כפי שמוצג) לקובץ Word: דרך אוצריא (שמור בשם), ומחוץ לה הורדה רגילה. */
+  O.exportDocx = async function () {
+    const text = O.getText();
+    if (!text) { PV.toast(PV.t('אין טקסט לייצוא')); return; }
+    let blob;
+    try { blob = await O.buildDocx(text); }
+    catch (e) { PV.error(PV.t('הייצוא נכשל: {e}', { e: PV.errMsg(e) })); return; }
+    if (PV.hasOtz()) {
+      try {
+        const up = await PV.call('fs.beginBinaryWrite', { purpose: 'user-file', expectedSize: blob.size });
+        const res = await fetch(up.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const done = await PV.call('fs.commitUserFileWrite', { writeToken: up.writeToken, suggestedName: baseName(), extension: 'docx', title: PV.t('שמירת קובץ Word') });
+        if (done && !done.cancelled) PV.toast(PV.t('נשמר: {n}', { n: done.name || '' }));
+        return;
+      } catch (e) {
+        if (e && e.code === 'permission_denied' || (e && /permission/.test(String(e.code)))) { PV.error(PV.t('אין הרשאה לשמירת קבצים — אפשר לאשר אותה בהגדרות התוסף')); return; }
+        PV.error(PV.t('השמירה נכשלה: {e}', { e: PV.errMsg(e) }));
+        return;
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = baseName() + '.docx';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+
   function fillPrintRoot() {
     const root = $('print-root');
     root.className = 'print-root';
@@ -921,6 +1110,8 @@
       else if (act === 'save') O.saveText();
       else if (act === 'print') O.printText();
       else if (act === 'pdf') O.exportPdf();
+      else if (act === 'docx') O.exportDocx();
+      else if (act === 'joinlines') O.joinLines();
       else if (act === 'search') O.searchLibrary(selectionIn(outEl) || O.getText().slice(0, 120));
       else if (act === 'edit') {
         const on = outEl.getAttribute('contenteditable') !== 'true';

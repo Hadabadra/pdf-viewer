@@ -161,14 +161,40 @@ svg.ic.ic-stroke { fill: none; stroke: currentColor; stroke-width: 2; stroke-lin
 .page-input:focus { border-color: var(--color-primary); }
 .page-input:disabled { opacity: 0.5; }
 .page-total { font-size: 0.88em; color: var(--color-on-surface-variant); white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
-.zoom-select {
-  height: 2.1em; min-width: 7.6em; padding: 0 0.5em;
-  border: 1.5px solid var(--color-outline); border-radius: var(--radius-sm);
+.zoom-box { position: relative; display: inline-block; height: 2.1em; width: 7.6em; font-size: 0.9em; }
+/* 5.16.0: תיבת התקריב — שדה להקלדה ידנית (למעלה) ורשימת ההתקריבים המוכנים (select שקוף מתחתיו, נפתח מהחץ) */
+.zoom-input {
+  position: absolute; top: 0; bottom: 0; width: auto; z-index: 2; /* הצד נקבע פיזית למטה (לשדה direction משלו) */
+  padding: 0 0.3em 0 0; margin: 0; text-align: center; direction: ltr;
+  border: 1.5px solid var(--color-outline);
+  left: 0; right: 1.9em; border-right: 0; border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   background: var(--color-surface); color: var(--color-on-surface);
-  font-family: var(--font-ui); font-size: 0.9em; outline: none; cursor: pointer;
+  font-family: var(--font-ui); font-size: 1em; outline: none; min-width: 0;
 }
-.zoom-select:focus { border-color: var(--color-primary); }
-.zoom-select:disabled { opacity: 0.5; cursor: default; }
+/* RTL: החץ בצד שמאל, השדה מימינו */
+html[dir="rtl"] .zoom-input { left: 1.9em; right: 0; border-right: 1.5px solid var(--color-outline); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.zoom-input:focus { border-color: var(--color-primary); }
+.zoom-input:disabled { opacity: 0.5; }
+.zoom-select {
+  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; padding: 0 0.5em;
+  border: 1.5px solid var(--color-outline); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: transparent;
+  font-family: var(--font-ui); font-size: 1em; outline: none; cursor: pointer; opacity: 0;
+}
+.zoom-select option { color: var(--color-on-surface); }
+.zoom-select:disabled { cursor: default; }
+.zoom-box::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 1.9em; z-index: 0; pointer-events: none;
+  border: 1.5px solid var(--color-outline); border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--color-surface);
+}
+.zoom-box .zoom-chev {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 1.9em; z-index: 1; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; color: var(--color-on-surface-variant);
+}
+.zoom-box .zoom-chev::before { content: ''; width: 0.38em; height: 0.38em; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-0.12em) rotate(45deg); }
+html[dir="rtl"] .zoom-box::after, html[dir="rtl"] .zoom-box .zoom-chev { right: auto; left: 0; }
+html[dir="rtl"] .zoom-box::after { border-left: 1.5px solid var(--color-outline); border-right: 0; border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.zoom-box.disabled { opacity: 0.5; }
 @media (max-width: 1000px) {
   .toolbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.3em 0.5em; padding-inline-end: 5.6em; }
   .tb-side { display: contents; }
@@ -281,6 +307,30 @@ body.hide-search-path .search-results .list-item .li-sub { display: none; }
 .tree-toggle { width: 1.1em; height: 1.1em; display: inline-flex; color: var(--color-on-surface-variant); }
 .tree-toggle svg.ic { width: 1em; height: 1em; }
 
+/* ── פסי גלילה (5.16.0) ───────────────────────────────────────────────
+   צרים (--sb-w), עם רקע שקוף ואגודל חצי-שקוף, אבל עדיין נתפסים בעכבר. בצופה עצמו (.viewer) פס הגלילה
+   נסתר לגמרי — גם האגודל — ומופיע רק כשהעכבר על אזור הפס (מחלקה sb-hot מ-viewer.js, ובנוסף :hover על האגודל). */
+:root { --sb-w: 8px; --sb-thumb: rgba(121, 116, 126, 0.45); --sb-thumb-hover: rgba(121, 116, 126, 0.8); }
+@supports (color: color-mix(in srgb, red 50%, transparent)) {
+  :root {
+    --sb-thumb: color-mix(in srgb, var(--color-outline) 50%, transparent);
+    --sb-thumb-hover: color-mix(in srgb, var(--color-outline) 85%, transparent);
+  }
+}
+::-webkit-scrollbar { width: var(--sb-w); height: var(--sb-w); background: transparent; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner, ::-webkit-scrollbar-button { background: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-thumb { background-color: var(--sb-thumb); border-radius: var(--radius-pill, 999px); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background-color: var(--sb-thumb-hover); }
+.viewer::-webkit-scrollbar-thumb { background-color: transparent; }
+.viewer.sb-hot::-webkit-scrollbar-thumb, .viewer::-webkit-scrollbar-thumb:hover, .viewer::-webkit-scrollbar-thumb:active { background-color: var(--sb-thumb); }
+.viewer.sb-hot::-webkit-scrollbar-thumb:hover, .viewer::-webkit-scrollbar-thumb:active { background-color: var(--sb-thumb-hover); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--sb-thumb) transparent; }
+  .viewer { scrollbar-color: transparent transparent; }
+  .viewer.sb-hot { scrollbar-color: var(--sb-thumb) transparent; }
+}
+
 /* ── אזור הצפייה ─────────────────────────────────────────────────── */
 .viewer {
   flex: 1; min-width: 0; position: relative; overflow: auto;
@@ -288,6 +338,19 @@ body.hide-search-path .search-results .list-item .li-sub { display: none; }
   outline: none;
 }
 .pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px 16px 24px; min-width: min-content; }
+/* 5.16.0: עמודי PDF/תמונות — בלי רווח אנכי בין העמודים ומעליהם ומתחתיהם; לרוחב — העמוד צמוד לצד של פס הגלילה
+   (שנסתר) ובצד השני נשאר רווח בעובי פס הגלילה, כך שהרווחים שווים. מסמכי טקסט ו-HTML לא מושפעים. */
+.pages:has(.page) { gap: var(--sb-w); padding: 0; padding-inline-start: var(--sb-w); }
+/* 5.18.0: רווח בין העמודים — גם אנכי (בין עמוד לעמוד, ובתצוגת שני עמודים בין שורה לשורה), באותו עובי (--sb-w) כמו הרווח שבין שני העמודים בשורה.
+   הרווח נמצא רק בין העמודים: אין ריפוד מעל העמוד הראשון ומתחת לאחרון, והמעבר לעמוד מיישר את ראשו לראש החלון (offsetTop של העמוד, בלי הרווח),
+   ו„התאמה לגובה“ מצמידה את שני קצוות העמוד לחלון. ההגדרה noPageGap (מחלקה no-gap) מבטלת את כל הרווחים בין העמודים. */
+.pages.no-gap:has(.page) { gap: 0; }
+.pages.no-gap .spread { gap: 0; }
+/* 5.17.0: שני עמודים זה לצד זה — שורה (.spread) לכל זוג, ורווח ביניהם בעובי פס הגלילה. העמוד שבפוקוס מסומן במסגרת. */
+.pages .spread { display: flex; flex-direction: row; align-items: flex-start; gap: var(--sb-w); flex-shrink: 0; }
+.pages .spread-ghost { flex-shrink: 0; height: 1px; visibility: hidden; pointer-events: none; }
+/* 5.18.0: ההגדרה showFocusFrame (מחלקה no-focus-frame כשכבויה) מסתירה את המסגרת; העמוד שבפוקוס עדיין נקבע ופועל כרגיל */
+.pages.two-up:not(.no-focus-frame) .page.current { outline: 2px solid var(--color-primary); outline-offset: -2px; }
 .page {
   position: relative; background: var(--color-page);
   box-shadow: var(--shadow-edge); /* קצה עדין בלבד, בלי אפקט ציפה */
@@ -298,6 +361,16 @@ body.hide-search-path .search-results .list-item .li-sub { display: none; }
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
 }
 .viewer.night .page canvas.page-canvas, .viewer.night .doc-image { filter: invert(0.9) hue-rotate(180deg); }
+
+/* ── צבע העמוד (הגדרות ← תצוגה ← צבע העמוד; js/pagecolor.js) ───────────────────────────────────
+   body.page-tint מופעלת רק כשנבחר צבע וגם מצב לילה כבוי — במצב לילה כל הכללים כאן לא חלים, והעמודים נראים כמו קודם.
+   קנבס העמוד (PDF/תמונה) מצויר ב-multiply מעל רקע העמוד: לבן ← צבע העמוד, ושחור (הכתב) נשאר שחור.
+   הרקע שמסביב לעמודים והכתב לא נצבעים. הכללים משפיעים על התצוגה בלבד (לא על הקובץ, ה-OCR, החילוץ וההדפסה). */
+body.page-tint .viewer .page { background: var(--user-page-color); isolation: isolate; }
+body.page-tint .viewer .page canvas.page-canvas { mix-blend-mode: multiply; }
+body.page-tint:not(.dark-mode) .viewer .doc-text,
+body.page-tint:not(.dark-mode) .viewer .doc-frame { background: var(--user-page-color); }
+body.page-tint .thumb canvas { filter: url(#pv-page-tint); }
 .viewer.region-mode .page { cursor: crosshair; }
 .viewer.region-mode .textLayer { pointer-events: none; }
 
@@ -656,3 +729,86 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
 .pdftool summary { display: flex; align-items: center; gap: 0.5em; cursor: pointer; padding: 0.25em 0; }
 .pdftool[open] summary { margin-bottom: 0.5em; }
 .pdftool .btn { margin-top: 0.5em; }
+
+/* ── בורר צבע העמוד (כמו בתוסף "שני טורים") ── */
+.setting-row .color-picker-trigger { width: 11em; flex: 0 0 auto; }
+.color-picker-trigger {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  box-sizing: border-box; padding: 0.45em 0.75em;
+  border: 1px solid var(--color-outline); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-on-surface);
+  font-family: inherit; font-size: 0.9em; cursor: pointer;
+}
+.color-picker-trigger:hover { border-color: var(--color-primary); }
+.color-picker-trigger.open .color-picker-chevron { transform: rotate(180deg); }
+.color-picker-swatch {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--color-outline-variant);
+  box-shadow: inset 0 0 0 2px var(--color-surface);
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, var(--color-outline-variant) 25%, transparent 25%, transparent 75%, var(--color-outline-variant) 75%),
+    linear-gradient(45deg, var(--color-outline-variant) 25%, transparent 25%, transparent 75%, var(--color-outline-variant) 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px;
+}
+.color-picker-current-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+.color-picker-chevron { width: 16px; height: 16px; fill: var(--color-outline); flex-shrink: 0; transition: transform 0.15s ease; }
+.color-picker-inline {
+  display: none; flex-direction: column; gap: 10px; margin-top: 6px; padding: 10px;
+  border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+  background: var(--color-surface-container-high);
+}
+.color-picker-inline.open { display: flex; }
+.color-picker-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.color-picker-preset-swatch {
+  width: 26px; height: 26px; border-radius: 50%; box-sizing: border-box;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+  box-shadow: 0 0 0 1px var(--color-outline-variant);
+}
+.color-picker-preset-swatch:hover { box-shadow: 0 0 0 1px var(--color-primary); }
+.color-picker-preset-swatch.selected { border-color: var(--color-surface-container-high); box-shadow: 0 0 0 2px var(--color-primary); }
+.color-picker-preset-swatch.none-swatch {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, var(--color-outline) 25%, transparent 25%, transparent 75%, var(--color-outline) 75%),
+    linear-gradient(45deg, var(--color-outline) 25%, transparent 25%, transparent 75%, var(--color-outline) 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px;
+}
+.color-picker-custom-toggle {
+  font-size: 0.85em; color: var(--color-primary); background: none; border: none; cursor: pointer;
+  padding: 2px 0; text-align: start; width: fit-content; text-decoration: underline;
+}
+.color-picker-custom { display: none; flex-direction: column; gap: 10px; }
+.color-picker-custom.open { display: flex; }
+.color-picker-sv {
+  position: relative; width: 100%; height: 120px; border-radius: var(--radius-sm);
+  cursor: crosshair; overflow: hidden; touch-action: none; box-shadow: inset 0 0 0 1px var(--color-outline-variant);
+}
+.color-picker-sv-white, .color-picker-sv-black { position: absolute; inset: 0; }
+.color-picker-sv-white { background: linear-gradient(to right, #fff, rgba(255,255,255,0)); }
+.color-picker-sv-black { background: linear-gradient(to top, #000, rgba(0,0,0,0)); }
+.color-picker-sv-cursor {
+  position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.35);
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.color-picker-hue {
+  position: relative; width: 100%; height: 14px; border-radius: var(--radius-pill); cursor: pointer; touch-action: none;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  box-shadow: inset 0 0 0 1px var(--color-outline-variant);
+}
+.color-picker-hue-cursor {
+  position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.35);
+  transform: translate(-50%, -50%); background: transparent; pointer-events: none;
+}
+.color-picker-fields { display: flex; gap: 6px; align-items: flex-end; }
+.color-picker-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.color-picker-field.color-picker-hex-field { flex: 1.7; }
+.color-picker-field label { font-size: 0.68em; color: var(--color-on-surface-variant); text-align: center; }
+.color-picker-field input {
+  width: 100%; box-sizing: border-box; padding: 6px 4px; text-align: center;
+  border: 1px solid var(--color-outline); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-on-surface); font-family: inherit; font-size: 0.85em; direction: ltr;
+}
+.color-picker-field input:focus { outline: none; border-color: var(--color-primary); }

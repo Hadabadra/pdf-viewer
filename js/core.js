@@ -3,7 +3,7 @@
   'use strict';
 
   const PV = (window.PV = window.PV || {});
-  PV.version = '5.7.1';
+  PV.version = '6.0.0';
   const $ = (PV.$ = (id) => document.getElementById(id));
 
   // ── אייקונים ──────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@
     sidebar: true,
     ocrQuality: 2,
     ocrLines: true,
-    ocrCols: false,
+    ocrCols: true,
     renderQuality: 2,   // דגימת־יתר מינימלית לעמודים: 2 חדה (ברירת מחדל) · 1.5 מאוזנת · 1 מהירה
     ocrMode: 'ocr',     // 'ocr' | 'extract' — מצב כפתורי תפריט החילוץ/זיהוי
     ocrEngine: 'tesseract', // מנוע זיהוי עברית: 'tesseract' (מדויק, ברירת מחדל) | 'tesseract-fast' (מהיר) | 'snip' (Windows דרך גשר אוצריא)
@@ -141,6 +141,10 @@
     rashiModel: 'best',     // 'best' (מדויק) | 'fast' (מהיר) — מודל כתב רש"י
     ocrScript: 'hebrew',    // 'hebrew' | 'rashi' | 'mixed' — רש"י: תמיד Tesseract עם מודל heb_rashi; מעורב: עברית + רש"י יחד
     handMode: false,        // true = מצב יד (גרירה לגלילה), false = מצב סמן (בחירת טקסט)
+    twoPages: false,        // 5.17.0: הצגת שני עמודים זה לצד זה (ברירת מחדל: כבוי — עמוד אחד, כמו קודם)
+    noPageGap: false,       // 5.18.0: true = העמודים צמודים לגמרי (בלי רווח ביניהם, גם אנכית וגם בין שני עמודים בשורה); ברירת מחדל: כבוי — יש רווח
+    showFocusFrame: true,   // 5.18.0: מסגרת סביב העמוד שבפוקוס בתצוגת שני עמודים (ברירת מחדל: מוצגת, כמו ב-5.17.0)
+    pageColor: null,        // צבע העמוד (#rrggbb), או null = ברירת מחדל (בלי שינוי) — ראו js/pagecolor.js
   };
   PV.loadSettings = async function () {
     const saved = await PV.store.get('settings', null);

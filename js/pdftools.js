@@ -100,7 +100,7 @@
     opt = opt || {};
     const bytes = opt.bytes || await curBytes();
     if (!B || !(B.port || (await B.probe()))) throw new Error(T('הפעולה דורשת את גשר אחת שאלתי 1.0.2 ומעלה'));
-    if (B.versionLt(B.info && B.info.version, '1.0.2')) throw new Error(T('הפעולה דורשת את גשר אחת שאלתי 1.0.2 ומעלה'));
+    if (!B.supports('pdftools')) throw new Error(T('הפעולה דורשת את גשר אחת שאלתי 1.0.2 ומעלה'));
     const eng = await B.call('/pdf/engines', {}, 15000);
     if (!eng || !(eng.ops || []).includes(op)) throw new Error(T('לא נמצאה במחשב תוכנה שיודעת לבצע את הפעולה — למשל PDF24, Ghostscript, qpdf, PDFtk, MuPDF או LibreOffice'));
     let cancelled = false;
@@ -281,7 +281,7 @@
     sec.appendChild(intro);
     if (engines === null) {
       engines = [];
-      try { if (B && (B.port || (await B.probe())) && !B.versionLt(B.info && B.info.version, '1.0.2')) engines = (await B.call('/pdf/engines', {}, 10000)).engines || []; } catch (e) { /* */ }
+      try { if (B && (B.port || (await B.probe())) && B.supports('pdftools')) engines = (await B.call('/pdf/engines', {}, 10000)).engines || []; } catch (e) { /* */ }
     }
     const st = document.createElement('p'); st.className = 'muted';
     st.textContent = engines.length ? T('תוכנות PDF שזוהו במחשב: {e}', { e: engines.map((x) => x.name).join(', ') }) : T('לא זוהתה במחשב תוכנה מתאימה (או שהגשר אינו 1.0.2) — הפעולות המסומנות ⚙ לא יעבדו. למשל PDF24 החינמי מוסיף אותן.');

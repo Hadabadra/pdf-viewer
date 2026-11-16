@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
+<!-- מסנן צביעה לתמונות העמודים הממוזערות (צבע העמוד, js/pagecolor.js): הכפלה בצבע, במרחב sRGB -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><filter id="pv-page-tint" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feColorMatrix id="pv-page-tint-matrix" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0"/></filter></svg>
 <div class="app-shell">
 
   <div class="tabbar" id="tabbar">
@@ -83,14 +85,18 @@
 
     <div class="tb-group tb-center" id="zoom-group">
       <button class="tb-btn" id="btn-zoom-out" title="הקטנה (Ctrl+Shift+-)" disabled><i data-icon="s_zoom_out"></i></button>
-      <select class="zoom-select" id="zoom-select" title="רמת התקריב" aria-label="רמת התקריב" disabled></select>
+      <span class="zoom-box disabled" id="zoom-box">
+        <select class="zoom-select" id="zoom-select" title="רמת התקריב" aria-label="רמת התקריב" disabled></select>
+        <input class="zoom-input" id="zoom-input" type="text" inputmode="decimal" dir="ltr" autocomplete="off" spellcheck="false" title="רמת התקריב — אפשר להקליד אחוז ולהקיש Enter" aria-label="רמת התקריב" disabled>
+        <span class="zoom-chev" aria-hidden="true"></span>
+      </span>
       <button class="tb-btn" id="btn-zoom-in" title="הגדלה (Ctrl+Shift++)" disabled><i data-icon="s_zoom_in"></i></button>
     </div>
 
     <div class="tb-side tb-side-end">
       <div class="tb-group">
-        <button class="tb-btn" id="btn-fitwidth" data-act="fit-width" title="התאמה לרוחב (Ctrl+Shift+0)" disabled><i data-icon="s_fit_width"></i></button>
-        <button class="tb-btn" id="btn-fitheight" data-act="fit-height" title="התאמה לגובה" disabled><i data-icon="s_fit_height"></i></button>
+        <button class="tb-btn" id="btn-fitwidth" data-act="fit-width" title="התאמה לרוחב (Ctrl+Shift+B)" disabled><i data-icon="s_fit_width"></i></button>
+        <button class="tb-btn" id="btn-fitheight" data-act="fit-height" title="התאמה לגובה (Ctrl+Shift+H)" disabled><i data-icon="s_fit_height"></i></button>
       </div>
       <div class="tb-sep"></div>
       <div class="tb-group">
@@ -183,8 +189,10 @@
         <button class="icon-btn small" data-tact="save" title="שמירה כקובץ טקסט…"><i data-icon="save"></i></button>
         <button class="icon-btn small" data-tact="print" title="הדפסה"><i data-icon="print"></i></button>
         <button class="icon-btn small" data-tact="pdf" title="ייצוא ל-PDF"><i data-icon="document_arrow_down"></i></button>
+        <button class="icon-btn small" data-tact="docx" title="ייצוא לקובץ Word (docx)…"><i data-icon="word_doc"></i></button>
         <button class="icon-btn small" data-tact="search" title="חיפוש הטקסט המסומן בספרייה של אוצריא"><i data-icon="book_search"></i></button>
-        <button class="icon-btn small" data-tact="edit" title="עריכת הטקסט (לתיקון שגיאות OCR)"><i data-icon="document_text"></i></button>
+        <button class="icon-btn small" data-tact="joinlines" title="החלפת כל מעברי השורה ברווח (טקסט רציף)"><i data-icon="join_lines"></i></button>
+        <button class="icon-btn small" data-tact="edit" title=""עריכת הטקסט (לתיקון שגיאות OCR)"><i data-icon="document_text"></i></button>
         <button class="icon-btn small" data-tact="clear" title="ניקוי"><i data-icon="delete"></i></button>
       </div>
       <div class="text-output" id="text-output" data-empty="כאן יופיע הטקסט שחולץ מהמסמך — מהשכבה המוטבעת או מ-OCR."></div>
@@ -220,6 +228,8 @@
           <label class="switch"><input type="checkbox" id="s-replace"><span class="track"></span></label></div>
         <div class="setting-row"><div class="sr-text"><b>דילוג על טקסט דיגיטלי</b><span>עמודים עם טקסט אמיתי (לא סרוק) נשארים כמו שהם</span></div>
           <label class="switch"><input type="checkbox" id="s-skip"><span class="track"></span></label></div>
+        <div class="setting-row" id="s-flat-row" hidden><div class="sr-text"><b>איכות העמוד כשהוא נשמר כתמונה</b><span>חל רק כשמוחלף טקסט דיגיטלי: העמוד נשמר כתמונה, והקובץ גדל מאוד. איכות נמוכה יותר = קובץ קטן יותר, אבל פחות חד</span></div>
+          <select class="select" id="s-flat"><option value="orig">כמו היום — חד ביותר, קובץ גדול</option><option value="balanced">מאוזן — עד 200 DPI, בערך חצי מהגודל</option><option value="small">קטן — עד 150 DPI ואיכות נמוכה יותר, בערך חמישית מהגודל</option></select></div>
         <div class="setting-row" id="s-ask-row"><div class="sr-text"><b>לשאול איפה לשמור בכל פעם</b><span>מופעל (ברירת מחדל): נפתח חלון שמירה לפני העיבוד. כבוי: נשמר אוטומטית לפי המיקום למטה, בלי שאלות. חל על מסמך בודד</span></div>
           <label class="switch"><input type="checkbox" id="s-ask"><span class="track"></span></label></div>
         <div class="setting-row"><div class="sr-text"><b>מיקום השמירה</b><span id="s-out-hint"></span></div>
@@ -242,6 +252,12 @@
             <option value="1">100%</option>
             <option value="1.5">150%</option>
           </select></div>
+        <div class="setting-row"><div class="sr-text"><b>שני עמודים זה לצד זה</b><span>מציג את העמודים בזוגות (1-2, 3-4…) עם רווח קטן ביניהם. הפוקוס תמיד על עמוד אחד — כל לחיצה על הבא/הקודם עוברת עמוד אחד, והעמוד שבפוקוס מסומן במסגרת; הזיהוי (OCR) והחילוץ פועלים על אותו עמוד</span></div>
+          <label class="switch"><input type="checkbox" id="set-two-pages"><span class="track"></span></label></div>
+        <div class="setting-row"><div class="sr-text"><b>ללא רווח בין העמודים</b><span>כבוי כברירת מחדל: יש רווח קטן בין העמודים, בעובי זהה בין עמוד עליון לתחתון ובין שני עמודים בשורה. כשמופעל, כל העמודים צמודים זה לזה מכל הכיוונים — גם בתצוגת עמוד אחד וגם בתצוגת שני עמודים</span></div>
+          <label class="switch"><input type="checkbox" id="set-no-page-gap"><span class="track"></span></label></div>
+        <div class="setting-row"><div class="sr-text"><b>מסגרת סביב העמוד שבפוקוס</b><span>בתצוגת שני עמודים, מסמן במסגרת את העמוד שבפוקוס. אפשר לכבות אם המסגרת מפריעה — הפוקוס עצמו (הבא/הקודם, OCR וחילוץ) ממשיך לפעול כרגיל</span></div>
+          <label class="switch"><input type="checkbox" id="set-focus-frame"><span class="track"></span></label></div>
         <div class="setting-row"><div class="sr-text"><b>איכות התצוגה</b><span>חדה יותר = טקסט ברור יותר, אבל העמודים נטענים לאט יותר ותופסים יותר זיכרון</span></div>
           <select class="select" id="set-render-quality">
             <option value="2">חדה</option>
@@ -256,6 +272,33 @@
           <label class="switch"><input type="checkbox" id="set-night-auto"><span class="track"></span></label></div>
         <div class="setting-row"><div class="sr-text"><b>פתיחת חלונית הצד</b><span>להציג עמודים ממוזערים כשנפתח מסמך</span></div>
           <label class="switch"><input type="checkbox" id="set-sidebar"><span class="track"></span></label></div>
+        <div class="setting-row"><div class="sr-text"><b>צבע העמוד</b><span>צובע את רקע העמודים (גם בעמודי PDF סרוקים, בתמונות ובמסמכי טקסט); הכתב והרקע שמסביב לעמוד לא משתנים. לא חל במצב לילה. מומלץ צבע בהיר</span></div>
+          <button type="button" class="color-picker-trigger" id="color-picker-trigger-page" title="בחירת צבע עמוד">
+            <span class="color-picker-swatch" id="color-picker-swatch-page"></span>
+            <span class="color-picker-current-label" id="color-picker-label-page" data-t-skip>ברירת מחדל</span>
+            <svg class="color-picker-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+          </button></div>
+        <div class="color-picker-inline" id="color-picker-inline-page">
+          <div class="color-picker-presets" id="color-picker-presets-page"></div>
+          <button type="button" class="color-picker-custom-toggle" id="color-picker-custom-toggle-page">התאמה אישית...</button>
+          <div class="color-picker-custom" id="color-picker-custom-page">
+            <div class="color-picker-sv" id="color-picker-sv-page">
+              <div class="color-picker-sv-white"></div>
+              <div class="color-picker-sv-black"></div>
+              <div class="color-picker-sv-cursor" id="color-picker-sv-cursor-page"></div>
+            </div>
+            <div class="color-picker-hue" id="color-picker-hue-page">
+              <div class="color-picker-hue-cursor" id="color-picker-hue-cursor-page"></div>
+            </div>
+            <div class="color-picker-fields">
+              <div class="color-picker-field"><label>R</label><input type="number" min="0" max="255" id="color-picker-r-page"></div>
+              <div class="color-picker-field"><label>G</label><input type="number" min="0" max="255" id="color-picker-g-page"></div>
+              <div class="color-picker-field"><label>B</label><input type="number" min="0" max="255" id="color-picker-b-page"></div>
+              <div class="color-picker-field color-picker-hex-field"><label>HEX</label><input type="text" id="color-picker-hex-page" maxlength="7"></div>
+            </div>
+          </div>
+          <button type="button" class="btn compact block" id="color-picker-reset-page">איפוס לברירת המחדל</button>
+        </div>
       </div>
       <div class="card">
         <h3><i data-icon="library"></i>שילוב באוצריא</h3>
@@ -272,8 +315,8 @@
         <ul class="muted">
           <li>כל הקיצורים: <kbd>Ctrl+Shift</kbd> + אות · <kbd>E</kbd> פתיחת קובץ · <kbd>K</kbd> הסתרה/הצגה של סרגל הכלים · <kbd>M</kbd> מסך מלא (יציאה גם עם <kbd>Esc</kbd>) · <kbd>U</kbd> הגדרות · <kbd>F</kbd> חיפוש · <kbd>L</kbd> אזור מסומן · <kbd>O</kbd> עמוד נוכחי (חילוץ או זיהוי, לפי המצב שנבחר בתפריט)</li>
           <li><kbd>Ctrl+Tab</kbd> לשונית הבאה · <kbd>Ctrl+Shift+Tab</kbd> לשונית קודמת · <kbd>Ctrl+Shift+N</kbd> לשונית חדשה · <kbd>Ctrl+Shift+W</kbd> סגירת הלשונית · <kbd>Ctrl+Shift+X</kbd> סגירת כל הלשוניות · <kbd>Ctrl+Shift+T</kbd> פתיחה מחדש של לשונית שנסגרה · <kbd>Ctrl+1</kbd>…<kbd>Ctrl+9</kbd> מעבר ללשונית לפי מספר (9 = האחרונה) · גרירת לשונית משנה את הסדר</li>
-          <li><kbd>PageUp</kbd>/<kbd>PageDown</kbd> מעבר עמוד · <kbd>Home</kbd>/<kbd>End</kbd> תחילה/סוף · <kbd>Ctrl+Shift+G</kbd> קפיצה לעמוד</li>
-          <li><kbd>Ctrl+Shift++</kbd>/<kbd>Ctrl+Shift+-</kbd> תקריב · <kbd>Ctrl+Shift+0</kbd> התאמה לרוחב · <kbd>Ctrl+Shift+]</kbd> סיבוב</li>
+          <li><kbd>PageUp</kbd>/<kbd>PageDown</kbd> או <kbd>←</kbd>/<kbd>→</kbd> מעבר עמוד (בכל מצב תקריב; <kbd>Shift</kbd>+חצים — גלילה לצדדים בתקריב גדול) · <kbd>Home</kbd>/<kbd>End</kbd> תחילה/סוף · <kbd>Ctrl+Shift+G</kbd> קפיצה לעמוד</li>
+          <li><kbd>Ctrl+Shift++</kbd>/<kbd>Ctrl+Shift+-</kbd> תקריב · <kbd>Ctrl+Shift+B</kbd> התאמה לרוחב (גם <kbd>Ctrl+Shift+0</kbd>) · <kbd>Ctrl+Shift+H</kbd> התאמה לגובה · <kbd>Ctrl+Shift+]</kbd> סיבוב</li>
           <li>במסך הקריאה של אוצריא: "פתיחת ספר ה-PDF הנוכחי בצופה" — ניתן להגדרה בהגדרות → קיצורי מקשים</li>
         </ul>
       </div>
@@ -283,7 +326,7 @@
       <div class="card">
         <h3><i data-icon="scan_text"></i>מנוע ה-OCR</h3>
         <p class="muted">Tesseract.js מובנה בתוסף, כולל עברית — עובד בלי אינטרנט. לזיהוי טוב יותר, המסמך מעובד ברזולוציה גבוהה מזו שעל המסך.</p>
-        <div class="setting-row"><div class="sr-text"><b>מסמך בשני טורים</b><span>מזהה כל טור בנפרד (ימין ואז שמאל), כדי שהטורים לא יתערבבו. במנוע Windows הפיצול נעשה רק כשיש רווח ברור בין הטורים (דף של טור אחד לא מפוצל)</span></div>
+        <div class="setting-row"><div class="sr-text"><b>זיהוי אוטומטי של טורים</b><span>מוצא את הרווח האמיתי בין הטורים (גם צר מאוד), מפצל בדיוק שם ומזהה כל טור בנפרד — ימין ואז שמאל — כך שהטורים והשורות לא מתערבבים גם כשהשורות לא באותו גובה. דף של טור אחד לא מפוצל</span></div>
           <label class="switch"><input type="checkbox" id="set-ocr-cols"><span class="track"></span></label></div>
         <div class="setting-row" id="row-ocr-engine"><div class="sr-text"><b>מנוע זיהוי עברית</b><span>משמש לכתב עברי רגיל, ולחלק העברי בזיהוי "מעורב". Tesseract מדויק (ברירת מחדל) או מהיר, או כלי החיתוך של Windows דרך גשר אוצריא. ב"מעורב" עם Windows, שורות ברש"י מזוהות ב-Tesseract</span></div>
           <select class="select" id="set-ocr-engine">
@@ -311,7 +354,7 @@
         <h3><i data-icon="cut"></i>מנוע Windows (דרך הגשר)</h3>
         <p class="muted">מזהה טקסט במנוע ה-OCR של Windows (אותו מנוע של "פעולות טקסט" בכלי החיתוך), ישירות דרך הגשר ובלי לפתוח את כלי החיתוך — גם בעברית. אם המנוע הישיר אינו זמין, הגשר חוזר לשיטה הישנה: פתיחת כל עמוד בכלי החיתוך (איטי יותר, ואסור להשתמש במחשב בזמן הריצה). בסוף כל זיהוי מוצג איזה מנוע עבד בפועל.</p>
         <ol class="muted">
-          <li>הורידו והפעילו את גשר אוצריא ("אחת שאלתי") בגרסה 1.0.1 ומעלה ("הורדת הגשר").</li>
+          <li>הורידו והפעילו את גשר אוצריא בגרסה 3.1.0 ומעלה, או את גשר "אחת שאלתי" בגרסה 1.0.1 ומעלה ("הורדת הגשר"). פתיחה בתוכנה אחרת, "פתח באמצעות" וכלי PDF זמינים רק בגשר "אחת שאלתי" 1.0.2 ומעלה.</li>
           <li>לחצו "בדיקת חיבור". בפעם הראשונה ייפתח במחשב חלון "בקשת גישה" — אשרו אותו.</li>
           <li>בתפריט הזיהוי בחרו "OCR של Windows" — לעמוד הנוכחי או לכל המסמך.</li>
         </ol>
@@ -372,6 +415,87 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>6.0.0</span>
+        <ul>
+          <li>מעבר מיידי בין לשוניות: במסמכים כבדים (למשל סריקות ברזולוציה גבוהה) המעבר ללשונית אחרת לקח שניות, כי העמוד שהיה פתוח צויר מחדש מאפס. עכשיו העמודים הקרובים לעמוד שהיה פתוח נשמרים בזמן שהלשונית ברקע ומוחזרים מיד בחזרה — העמוד מופיע באותו רגע, והטקסט שלו (לבחירה והעתקה) נבנה מיד אחריו. הזיכרון מוגבל, ולשוניות ישנות מאוד חוזרות להתנהגות הקודמת (ציור מחדש).</li>
+          <li>תיקון בזמן החזרה ללשונית: כבר לא מצוירים לשווא עמודים 1–3 לפני שמגיעים לעמוד הנכון, והתקריב (כולל „התאמה לרוחב“) חוזר בדיוק כפי שהיה, בלי חישוב מחדש וציור חוזר של כל העמודים.</li>
+          <li>תיקון: הדבקה בחלונית הטקסט במצב עריכה (למשל טקסט שהועתק מעמוד ה-PDF) הדביקה את העיצוב של שכבת הטקסט — מילים שקופות ומחוץ לחלונית. עכשיו מודבק טקסט פשוט בלבד, בתוך החלונית, עם השורות כפי שהועתקו, וההדבקה ניתנת לביטול ב-Ctrl+Z.</li>
+          <li>לא השתנה: כל שאר התכונות וההגדרות.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.19.5</span>
+        <ul>
+          <li>חלונית הטקסט: לחצן חדש לייצוא הטקסט לקובץ Word (docx), עם אייקון משלו. הטקסט נשמר כפי שהוא מוצג בחלונית (בהתאם ל„הצג ניקוד“), שורה בכל פסקה, ופסקאות בעברית או בערבית מוגדרות מימין לשמאל. השמירה דרך אוצריא („שמור בשם“), ומחוץ לה — הורדה רגילה.</li>
+          <li>חלונית הטקסט: לחצן חדש להחלפת כל מעברי השורה ברווח, לטקסט רציף. כמה מעברי שורה ברצף (כולל שורות ריקות באמצע) מוחלפים ברווח אחד בלבד. הפעולה חלה על כל הטקסט שבחלונית.</li>
+          <li>לא השתנה: כל שאר הכפתורים והתכונות, כולל ההעתקה, השמירה כטקסט, ההדפסה והייצוא ל-PDF.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.19.0</span>
+        <ul>
+          <li>תיקון: במסמכים שהעמודים או התמונות הממוזערות שלהם נטענים לאט (למשל סריקות כבדות ברזולוציה גבוהה) פס הגלילה כבר לא נתקע באמצע. כשהגלילה או גרירת הפס מתחילה, טעינות שעדיין לא הסתיימו מבוטלות, ובזמן הגלילה או הגרירה לא מתחילות טעינות חדשות — העמודים והממוזערות נטענים ברגע שהגלילה נעצרת, והפס זז מיד. במסמכים רגילים וקלים ההתנהגות כמו קודם.</li>
+          <li>תיקון: סמן הגלילה של אזור הצפייה (האגודל) כבר לא נעלם כשהעכבר עומד על פס הגלילה, גם בזמן טעינת עמודים או גלילה ארוכה — כשהעכבר על הפס הוא תמיד מוצג, וכשהוא על העמוד הוא נשאר מוסתר.</li>
+          <li>תיקון: כשמצמידים את העכבר לקצה המסך, על פס הגלילה, הסמן כבר לא נעלם — הוא נשאר מוצג עד שמזיזים את העכבר חזרה פנימה.</li>
+          <li>לא השתנה: כל שאר ההגדרות והתכונות, כולל רווח בין העמודים ומסגרת הפוקוס כפי שהם ב-5.18.0.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.18.0</span>
+        <ul>
+          <li>רווח בין העמודים: בין עמוד עליון לתחתון (בתצוגת עמוד אחד) ובין שורה עליונה לתחתונה (בתצוגת שני עמודים) יש עכשיו רווח, בדיוק בעובי הרווח שבין שני העמודים בשורה. הרווח נמצא רק בין העמודים: ראש העמוד צמוד לסרגל כשעוברים לעמוד (הבא/הקודם ומעבר לעמוד), ובהתאמה לגובה שני קצוות העמוד צמודים לחלון, למעלה ולמטה, בלי רווח.</li>
+          <li>הגדרות ← תצוגה ← „ללא רווח בין העמודים“ (כבוי כברירת מחדל, כלומר יש רווח): כשמופעל אין שום רווח בין העמודים — לא בין עמוד עליון לתחתון, ובתצוגת שני עמודים גם לא בין שני העמודים בשורה. החלפת ההגדרה בזמן שמסמך פתוח משאירה אותך באותו עמוד ובאותו מקום בעמוד, ו„התאמה לרוחב“ בתצוגת שני עמודים מחושבת מחדש לפי הרווח.</li>
+          <li>הגדרות ← תצוגה ← „מסגרת סביב העמוד שבפוקוס“ (מופעל כברירת מחדל, כמו עד עכשיו): כיבוי ההגדרה מסתיר את המסגרת בתצוגת שני עמודים. הפוקוס עצמו, הניווט, ה-OCR והחילוץ לא משתנים.</li>
+          <li>לא השתנה: ריווח מצד פס הגלילה, מסמכי טקסט ו-HTML, ההדפסה, החיפוש, העמודים הממוזערים, תוכן העניינים, ה-OCR וכל שאר ההגדרות.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.17.0</span>
+        <ul>
+          <li>הגדרות ← תצוגה ← „שני עמודים זה לצד זה“ (כבוי כברירת מחדל): מציג את העמודים בזוגות — 1-2, 3-4 וכן הלאה — עם רווח קטן ביניהם בעובי של פס הגלילה. העמוד הראשון בזוג מימין והשני משמאל (לפי כיוון הממשק). אם מספר העמודים אי-זוגי, העמוד האחרון נשאר במקום של העמוד הראשון בזוג. הרווח מהצד השני של הזוג וצמידות העמוד לפס הגלילה כמו בתצוגה הרגילה.</li>
+          <li>הפוקוס תמיד על עמוד אחד, והוא מסומן במסגרת: כל לחיצה על הבא או הקודם (כפתורים, חצים, PageUp/PageDown) עוברת עמוד אחד לפי סדר העמודים — קודם הימני ואחר כך השמאלי, ואחורה קודם השמאלי ואחר כך הימני — ולכן מעבר בין זוגות לוקח שתי לחיצות. כך גם בגלילה בעכבר: בגלילה קדימה לשורה חדשה הפוקוס על העמוד הימני, ובגלילה אחורה על השמאלי; כל עוד נשארים באותה שורה הפוקוס לא משתנה. לחיצה על עמוד מעבירה אליו את הפוקוס. הזיהוי (OCR) והחילוץ של „העמוד הנוכחי“ פועלים על העמוד שבפוקוס, ובתפריט לחיצה ימנית ובאזור מסומן — על העמוד שנלחץ.</li>
+          <li>התאמה לרוחב, לגובה ועמוד שלם: מחושבות לפי הזוג שהעמוד שבפוקוס שייך אליו — רוחב שני העמודים והרווח ביניהם נכנסים בדיוק ברוחב החלון, ובגובה — לפי הגבוה בזוג. החלפה של ההגדרה בזמן שמסמך פתוח משאירה אותך באותו עמוד ובאותו מקום בעמוד, ומתעדכנת גם במצבי ההתאמה. הזום בצעדי 10% והקלדת הזום פועלים כמו קודם.</li>
+          <li>לא השתנה: ברירת המחדל (עמוד אחד), מסמכי טקסט ו-HTML, ההדפסה, החיפוש, העמודים הממוזערים, תוכן העניינים וכל שאר ההגדרות.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.16.0</span>
+        <ul>
+          <li>פסי הגלילה: כל פסי הגלילה בתוסף צרים יותר (8 פיקסלים) ושקופים — הרקע שקוף והאגודל חצי-שקוף — ועדיין אפשר לתפוס אותם ולגרור.</li>
+          <li>פס הגלילה של דפי ה-PDF (וכל מה שמוצג באזור הצפייה) לא נראה בכלל — לא הפס ולא האגודל — ומופיע רק כשהעכבר עומד על אזור הפס עצמו. כשהעכבר על העמוד הוא נשאר נסתר.</li>
+          <li>רוחב העמוד: העמוד צמוד לצד של פס הגלילה (שנסתר), ובצד השני נשאר רווח בעובי של פס הגלילה, כך שהרווחים משני הצדדים שווים. „התאמה לרוחב“ מחשבת לפי הרוחב החדש.</li>
+          <li>גובה העמוד: אין יותר רווח בין העמודים, והעמוד צמוד למעלה ולמטה. „התאמה לגובה“ ו„עמוד שלם“ מתאימות את העמוד בדיוק לגובה החלון, והמעבר לעמוד מיישר את תחילת העמוד לראש החלון.</li>
+          <li>הגדלה והקטנה של התקריב (כפתורי + ו-, Ctrl+Shift+ +/- וגלגלת עם Ctrl) משתנות בצעדים של 10% בלבד (למשל 100% ← 110% ← 120%), במקום הצעדים הגדולים שהיו.</li>
+          <li>תיבת התקריב: אפשר להקליד בה ידנית כל אחוז רצוי, גם לא עגול (למשל 87.5), ולהקיש Enter (או ללחוץ מחוץ לתיבה). הטווח המותר 25%–500%. רשימת הערכים המוכנים וההתאמות (לרוחב, לגובה, עמוד שלם) נשארו וזמינים מהחץ שבתיבה.</li>
+          <li>לא השתנה: מסמכי טקסט ו-HTML, ה-OCR, החיפוש, החילוץ, השכבות, ההדפסה וכל שאר ההגדרות.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.15.0</span>
+        <ul>
+          <li>חיפוש קובץ במחשב (במסך הפתיחה): התוצאות מהתיקיות שהוספתם לתוסף מופיעות מיד, גם כשהגשר עדיין לא מחובר או שהצימוד עוד לא אושר. בינתיים התוסף מתחבר לגשר ומבצע את הצימוד ברקע, וברגע שהוא מאושר כל התוצאות מהמחשב מתווספות לרשימה אוטומטית — בלי להקליד שוב אפילו אות. קובץ שנמצא גם בתיקיות וגם במחשב מוצג פעם אחת. אם הסריקה הראשונה של התיקיות עדיין רצה, מוצגות התוצאות עד כה והרשימה מתעדכנת כשהיא מסתיימת.</li>
+          <li>הגדרות ← תצוגה ← „צבע העמוד“: בורר צבע (צבעים מוכנים והתאמה אישית) כמו בתוסף „שני טורים“. הצבע חל על רקע העמודים — עמודי PDF עם טקסט דיגיטלי ועמודים סרוקים, תמונות, מסמכי טקסט ומסמכי HTML, וגם על התמונות הממוזערות. הכתב, הרקע שמסביב לעמוד וצבעי התוסף לא משתנים, והקובץ עצמו, ה-OCR, חילוץ הטקסט וההדפסה לא מושפעים.</li>
+          <li>מצב לילה: הצבע לא חל כשמצב לילה פעיל, כך שהעמודים הכהים נראים בדיוק כמו קודם; כשמצב הלילה נכבה הצבע חוזר מיד. מומלץ לבחור צבע בהיר, כי הכתב נשאר כמו שהוא.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.14.1</span>
+        <ul>
+          <li>פריסת עמוד לפי אזורים: דף עם כותרת עמוד, טורים, כותרת פנימית וטורים נוספים נקרא בסדר: כותרת העמוד ← טור ימין ← טור שמאל ← הכותרת הפנימית ← טור ימין ← טור שמאל. כותרת שחוצה את כל העמוד כבר לא נחתכת באמצע, והשורות של שני הטורים לא מתערבבות גם כשהן לא באותו גובה. בדף לדוגמה שהעלינו (כותרת „נד הר / הוריות / אפרים“, שני טורים, „סימן כב“, שני טורים) התקבלו בדיוק שישה אזורים בסדר הנכון.</li>
+          <li>זה חל על כל המנועים: זיהוי טקסט (Tesseract ו-Windows), זיהוי מעורב (Windows לעברית + Tesseract לרש"י), ו„PDF עם שכבת טקסט“. בשכבת הטקסט המילים נכתבות אזור אחרי אזור (טור שלם ואז הטור הבא), ולכן בחירת טקסט בעכבר עוברת טור אחרי טור ולא שורה על פני שני הטורים.</li>
+          <li>דפי גמרא ופריסות לא חד-משמעיות (שלושה טורים ומעלה, טורים בגבהים שונים): ללא שינוי — כמו קודם. התוסף מפצל רק כשהפריסה ברורה, ואחרת חוזר להתנהגות הקודמת.</li>
+          <li>תיקון: במצב מעורב ובשכבת הטקסט, חלק שכבר נחתך נבדק שוב על ידי Tesseract ולפעמים נחתך שוב, אפילו בתוך טור בודד. כעת חלק שכבר נחתך לא נחתך שוב.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.11.0</span>
+        <ul>
+          <li>יישור אוטומטי של עמוד סרוק מסובב: כשהעמוד נטוי במעלה או יותר, התוסף מיישר אותו לפני הזיהוי. בבדיקה על עמוד בשני טורים, סיבוב של 1° עד 3° העלה את השגיאות מכ-1% ל-3% עד 12% (וגם החיתוך לטורים נכשל מ-2°); אחרי היישור השגיאה חזרה לכ-1% בכל הזוויות. היישור פועל רק כשהזווית גדולה מ-0.8° ויש לה עדות חזקה — עמוד ישר או כמעט ישר לא נוגעים בו (בזוויות קטנות היישור לפעמים הזיק).</li>
+          <li>היישור חל על זיהוי טקסט בעמוד שלם, ולא על אזור שסימנתם ידנית, לא על מנוע Windows ולא על „PDF עם שכבת טקסט“ (שם מיקום המילים חייב להתאים לעמוד המקורי).</li>
+          <li>תיקון בגלאי הטורים: שולי סריקה כהים עבים קודם נתפסו כ„טור“ ופיצלו לפעמים עמוד של טור אחד; כעת עצם בגובה העמוד (שוליים או קו הפרדה מודפס, גם עבה) לא נספר כטקסט. בבדיקה גם קו הפרדה מודפס ברוחב 12 פיקסלים מזוהה נכון.</li>
+          <li>דפי גמרא וכל דף עם פריסה מורכבת (כמה טורים בגבהים שונים, רש"י ותוספות מסביב): ללא שינוי. הגלאי לא מפצל אותם, ו-Tesseract קורא אותם בעצמו במצב „פריסה אוטומטית“ — ימני, מרכזי ואז שמאלי. בדף גמרא אמיתי שהעלינו התוצאה: 2,496 מילים (93.8% נמצאות במילון) לעומת 1,597 מילים (92.2%) עם שורות מעורבבות בקריאה כגוש אחד.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.10.0</span>
+        <ul>
+          <li>קיצורי מקשים חדשים: Ctrl+Shift+H — התאמה לגובה העמוד (לאורך), Ctrl+Shift+B — התאמה לרוחב. עובדים גם במקלדת בעברית. Ctrl+Shift+0 ממשיך להתאים לרוחב כמו קודם, והקיצורים מופיעים בהסבר של הכפתורים וברשימת הקיצורים.</li>
+          <li>תיקון: אחרי שינוי התקריב עם + ו-− (תקריב מותאם אישית, לא התאמה לרוחב או לגובה) חצי ימין ושמאל כבר לא החליפו עמוד. עכשיו הם מחליפים עמוד בכל מצב תקריב. כשהעמוד רחב מהחלון אפשר לגלול הצידה עם Shift+חצים.</li>
+          <li>תיקון ב„מה חדש“: תווית הגרסה של הרשימה של 5.8.0 הוחלפה בטעות ב-5.9.0. כעת לכל גרסה יש רשימה משלה עם מה שהשתנה בה.</li>
+          <li>בהגדרות ← מנוע Windows, הוראות ההתקנה מציינות את שני הגשרים: גשר אוצריא 3.1.0 ומעלה או גשר „אחת שאלתי“ 1.0.1 ומעלה, ואילו יכולות דורשות את החדש.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>5.9.0</span>
+        <ul>
+          <li>תיקון זיהוי דפים בשני טורים: עד עכשיו הדף נחתך בדיוק באמצע הרוחב — ולכן כשהרווח בין הטורים לא במרכז נחתכו אותיות או שנכנסו אותיות מהטור השכן בתחילת שורות — או, כשהאפשרות הייתה כבויה, נקרא כגוש אחד והשורות מהטורים התערבבו (בעיקר כשהשורות לא באותו גובה).</li>
+          <li>זיהוי אוטומטי של טורים: מוצא את הרווח האמיתי בין הטורים (גם ברוחב של פיקסל עד שלושה, עם קו הפרדה מודפס, עם כותרת שחוצה את העמוד, וטורים לא שווים), חותך בדיוק שם וקורא כל טור בנפרד — ימין ואז שמאל. דף של טור אחד לא מפוצל. האפשרות פעילה כברירת מחדל למשתמשים חדשים; למשתמשים קיימים נשמרת ההגדרה שלהם.</li>
+          <li>אותו פיצול חל גם על „PDF עם שכבת טקסט“: כל טור נקרא בנפרד והמילים חוזרות למקומן בעמוד. עמוד שלם בלי פיצול נקרא במצב „פריסה אוטומטית“ של Tesseract במקום כגוש אחד; אזור קטן שסימנתם ושורה בודדת נקראים כמו קודם.</li>
+          <li>מודל הרש"י „מדויק“ הוחלף ב-heb_rashi_plus5, שאומן גם על סריקות קטנות ומטושטשות, אותיות בודדות ופיסוק. המודל „מהיר“ לא השתנה.</li>
+          <li>תאימות לשני הגשרים: גשר אוצריא הישן (3.x, למשל 3.9.1) וגשר „אחת שאלתי“ (1.x/2.x) מזוהים שניהם — 3.9.1 כבר לא נחשב „ישן“. כל יכולת נבדקת מול המינימום של אותו גשר. מפתח הצימוד נשמר בנפרד לכל גשר, ואם שניהם פועלים מועדף החדש.</li>
+          <li>כשאין גשר מותקן, התוסף כבר לא סורק פורטים כל 3 שניות (ממתין 30 שניות), ובגשר שאינו תומך ב„פתח באמצעות“ — 2 דקות.</li>
+          <li>תיקונים טכניים: מספר הגרסה בקוד תוקן (נשאר 5.7.1 בגרסה הקודמת), והוחזרו קבצי הרישיונות של המודל, הגופנים ו-cmaps שהוסרו.</li>
+        </ul>
         <span class="version-tag" data-t-skip>5.8.0</span>
         <ul>
           <li>כלי PDF כמו ב-PDF24: חיבור, פיצול, חילוץ, מחיקה, סיבוב וסידור עמודים, תמונות ל-PDF ובחזרה, מספור, סימן מים, מאפיינים — ובתוכנות ה-PDF שמותקנות במחשב (הגשר מזהה מה יש — PDF24, Ghostscript, qpdf, PDFtk, MuPDF, LibreOffice, Word ועוד): דחיסה, גווני אפור, PDF/A, תיקון, הגנה והסרת סיסמה, המרות.</li>
@@ -639,14 +763,17 @@
 <script src="./js/lang-en.js"></script>
 <script src="./js/core.js"></script>
 <script src="./js/bridge.js"></script>
+<script src="./js/readorder.js"></script>
 <script src="./js/viewer.js"></script>
 <script src="./js/find.js"></script>
+<script src="./js/columns.js"></script>
 <script src="./js/ocr.js"></script>
 <script src="./js/pdftext.js"></script>
 <script src="./js/files.js"></script>
 <script src="./js/searchable.js"></script>
 <script src="./js/capture.js"></script>
 <script src="./js/tabs.js"></script>
+<script src="./js/pagecolor.js"></script>
 <script src="./js/app.js"></script>
 <script src="./js/openwith.js"></script>
 <script src="./js/pdftools.js"></script>

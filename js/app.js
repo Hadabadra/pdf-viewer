@@ -8,10 +8,15 @@
   // ── סרגל עליון ────────────────────────────────────────────────────────
   const ZOOM_OPTS = [['fit-width', 'התאמה לרוחב'], ['fit-height', 'התאמה לגובה'], ['fit-page', 'עמוד שלם'],
     ['0.5', '50%'], ['0.75', '75%'], ['1', '100%'], ['1.25', '125%'], ['1.5', '150%'], ['2', '200%'], ['3', '300%']];
+  // 5.16.0: אחוז התקריב כמו שמוצג — כולל ספרה עשרונית אחת כשהתקריב לא עגול (למשל 87.5%)
+  function fmtPct(scale) { return (Math.round(scale * 1000) / 10) + '%'; }
   function updateZoomSelect(zoomable) {
-    const sel = $('zoom-select');
+    const sel = $('zoom-select'), zi = $('zoom-input');
     sel.disabled = !zoomable;
-    const mode = String(V.zoomMode), pct = Math.round((zoomable ? V.scale : 1) * 100) + '%';
+    zi.disabled = !zoomable;
+    $('zoom-box').classList.toggle('disabled', !zoomable);
+    const mode = String(V.zoomMode), pct = fmtPct(zoomable ? V.scale : 1);
+    if (document.activeElement !== zi) { zi.value = pct; zi.dataset.dirty = ''; }
     sel.innerHTML = '';
     let matched = false;
     ZOOM_OPTS.forEach(([val, label]) => {
@@ -36,6 +41,27 @@
     updateNav();
     $('viewer').focus({ preventScroll: true });
   });
+  // 5.16.0: הקלדה ידנית של תקריב בתיבה (Enter או יציאה מהתיבה); טווח 25%–500%
+  (function () {
+    const zi = $('zoom-input');
+    function commit() {
+      const raw = zi.value.replace(',', '.').replace(/[%٪\s]/g, '');
+      zi.dataset.dirty = '';
+      if (/^\d+(\.\d+)?$/.test(raw)) {
+        const p = Math.max(25, Math.min(500, parseFloat(raw)));
+        if (p > 0) V.setZoom(Math.round(p * 10) / 1000);
+      }
+      updateNav();
+      zi.value = fmtPct(V.scale);
+    }
+    zi.addEventListener('focus', () => zi.select());
+    zi.addEventListener('input', () => { zi.dataset.dirty = '1'; });
+    zi.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); $('viewer').focus({ preventScroll: true }); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); zi.dataset.dirty = ''; zi.value = fmtPct(V.scale); $('viewer').focus({ preventScroll: true }); }
+    });
+    zi.addEventListener('blur', () => { if (zi.dataset.dirty) commit(); else zi.value = fmtPct(V.scale); });
+  })();
   function updateNav() {
     const paged = V.isPaged();
     $('btn-prev').disabled = !paged || V.page <= 1;
@@ -324,7 +350,8 @@
       if (c === 'BracketRight') { e.preventDefault(); V.rotate(); return; }
       if (c === 'Equal' || c === 'NumpadAdd') { e.preventDefault(); V.zoomBy(1); return; }
       if (c === 'Minus' || c === 'NumpadSubtract') { e.preventDefault(); V.zoomBy(-1); return; }
-      if (c === 'Digit0' || c === 'Numpad0') { e.preventDefault(); V.setZoom('fit-width'); return; }
+      if (c === 'Digit0' || c === 'Numpad0' || c === 'KeyB') { e.preventDefault(); V.setZoom('fit-width'); return; }    // התאמה לרוחב (B; 0 נשאר כמו קודם)
+      if (c === 'KeyH') { e.preventDefault(); V.setZoom('fit-height'); return; }                                        // התאמה לגובה (לאורך)
     }
     if (inField || !V.isPaged()) return;
     if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey && atPageEdge(1))) { e.preventDefault(); V.next(); }
@@ -333,10 +360,15 @@
     else if (e.key === 'End' && mod) { e.preventDefault(); V.goTo(V.count); }
     else if (e.key === 'Home' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(1); }
     else if (e.key === 'End' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(V.count); }
-    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && typeof V.zoomMode === 'string') {
-      e.preventDefault();
-      const forward = (e.key === 'ArrowLeft') === (document.documentElement.dir === 'rtl');
-      forward ? V.next() : V.prev();
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey && !e.metaKey) {
+      // חצים מחליפים עמוד בכל מצב תקריב (גם אחרי שינוי עם +/-, כשהתקריב הוא מספר ולא התאמה). Shift+חצים: גלילה לצדדים כשהעמוד רחב מהחלון
+      const vw = $('viewer');
+      if (e.shiftKey && vw && vw.scrollWidth > vw.clientWidth + 2) { e.preventDefault(); vw.scrollBy({ left: e.key === 'ArrowLeft' ? -80 : 80 }); }
+      else {
+        e.preventDefault();
+        const forward = (e.key === 'ArrowLeft') === (document.documentElement.dir === 'rtl');
+        forward ? V.next() : V.prev();
+      }
     }
   });
   function atPageEdge() { return V.zoomMode === 'fit-page'; }
@@ -436,6 +468,9 @@
   PV.on('settings', (key) => {
     if (key === 'nightAuto') applyAutoNight();
     if (key === 'renderQuality') V.rerender();
+    if (key === 'twoPages') V.applyTwoPages();
+    if (key === 'noPageGap') V.applyPageGap();
+    if (key === 'showFocusFrame') V.applyFocusFrame();
     if (key === 'ocrQuality' || key === 'ocrLines') { /* חל בזיהוי הבא */ }
   });
   function applyAutoNight() {
@@ -523,7 +558,7 @@
       else {
         const info = await PV.bridge.probe();
         if (!info) msg = PV.t('הגשר לא זמין (לא מותקן, לא פועל, או שחסרה הרשאת רשת מקומית)');
-        else if (PV.bridge.versionLt(info.version, PV.BRIDGE_MIN)) msg = PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה. הורידו את הגרסה החדשה.', { v: info.version, m: PV.BRIDGE_MIN });
+        else if (!PV.bridge.supports('base', info.version)) msg = PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה. הורידו את הגרסה החדשה.', { v: info.version, m: PV.bridge.minFor('base', info.version) || PV.BRIDGE_MIN });
         else if (!full) msg = PV.t('הגשר {v} פועל. לחצו "בדיקת חיבור" כדי לאשר את החיבור ולבדוק את כלי החיתוך.', { v: info.version });
         else {
           const st = await PV.bridge.snipStatus();
@@ -763,6 +798,9 @@
     PV.searchable.closePanel = closeOverlay;
     if (PV.settings.ocrEngine === 'windows') PV.settings.ocrEngine = 'tesseract'; // OCR של Windows הוסר (אין עברית)
     bindSetting('set-zoom', 'zoom');
+    bindSetting('set-two-pages', 'twoPages');
+    bindSetting('set-no-page-gap', 'noPageGap');
+    bindSetting('set-focus-frame', 'showFocusFrame');
     bindSetting('set-resume', 'resume');
     bindSetting('set-restore-tabs', 'restoreTabs');
     bindSetting('set-night-auto', 'nightAuto');
@@ -779,6 +817,7 @@
     bindStoreSwitch('set-library', 'showInLibrary', (on) => { if (on) Fs.syncLibrary({ verbose: true }); else $('library-sync-status').textContent = PV.t('הקבצים הוסתרו מחיפוש הספרייה'); });
     bindStoreSwitch('set-tb-open', 'tbOpen');
     bindStoreSwitch('set-tb-extract', 'tbExtract');
+    PV.pageColor.init();   // 5.15.0: צבע העמוד (הגדרות ← תצוגה)
     applyAutoNight();
     $('about-version').textContent = 'v' + PV.version;
     await Fs.loadRecents();

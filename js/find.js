@@ -15,16 +15,23 @@
     const map = [];
     let text = '';
     if (tc) {
-      tc.items.forEach((it, i) => {
+      // סדר קריאה לפי מיקום לטקסט עברי שכתוב בסדר חזותי; האינדקס i נשאר של הפריט המקורי, כך שההדגשה על שכבת הטקסט לא משתנה
+      const ro = window.ReadOrder && window.ReadOrder.sequence(tc.items);
+      const sps = ro || !window.ReadOrder ? [] : window.ReadOrder.spaces(tc.items);
+      const seq = ro || tc.items.map((it, i) => ({ i, eol: !!it.hasEOL, sp: !!sps[i] }));
+      seq.forEach((e) => {
+        const it = tc.items[e.i], i = e.i;
         if (typeof it.str !== 'string') return;
-        for (let c = 0; c < it.str.length; c++) {
-          const ch = it.str[c];
+        if (e.sp) { text += ' '; map.push([i, 0]); }
+        const str = ro && ro.mirror ? window.ReadOrder.mirror(it.str) : it.str;
+        for (let c = 0; c < str.length; c++) {
+          const ch = str[c];
           if (ignoreNikud && NIKUD_RE.test(ch)) continue;
           text += ch.toLowerCase();
           map.push([i, c]);
         }
-        text += it.hasEOL ? '\n' : '';
-        if (it.hasEOL) map.push([i, it.str.length]);
+        text += e.eol ? '\n' : '';
+        if (e.eol) map.push([i, it.str.length]);
       });
     }
     const res = { text, map };

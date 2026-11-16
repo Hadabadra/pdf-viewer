@@ -1009,6 +1009,42 @@
     if (e.key === 'Escape' && $('folders-search').value) { e.stopPropagation(); $('folders-search').value = ''; runFolderSearch(); }
   });
 
+  /** חיפוש קבצים בתיקיות שנוספו לתוסף, עבור שורת "חיפוש קובץ במחשב" במסך הפתיחה (bridge.js).
+   *  כמו שם הקובץ בחיפוש במחשב: כל המילים צריכות להופיע בשם (בכל סדר, בלי ניקוד/גרשיים/אותיות סופיות).
+   *  מחזיר מיד, בלי להמתין לגשר: { items, scanning, wait }.
+   *  items — [{ name, path, abs, folderToken }] מדורגות (abs = הנתיב המלא, או '' אם לא ידוע);
+   *  scanning — עדיין אין מדד שלם (הוחזרו תוצאות חלקיות); wait — הבטחה שמסתיימת כשהמדד מוכן (או null). */
+  Fs.searchFolderFiles = function (raw) {
+    const out = { items: [], scanning: false, wait: null };
+    const tokens = nrmSearch(raw).split(' ').filter(Boolean);
+    if (!folders.length || !tokens.length) return out;
+    let src = folderIndex;
+    if (!src) {
+      out.scanning = true;
+      out.wait = buildIndex().catch(() => null);   // מתחיל סריקה אם לא רצה כבר
+      src = partialIndex || [];
+    }
+    const hits = [];
+    for (const x of src) {
+      if (x.nf === undefined) x.nf = nrmSearch(x.name);
+      let sc = 0, ok = true;
+      for (const t of tokens) {
+        const i = x.nf.indexOf(t);
+        if (i < 0) { ok = false; break; }
+        sc += (i === 0 || x.nf.charCodeAt(i - 1) === 32) ? 4 : 3;
+      }
+      if (ok) hits.push([x, sc]);
+    }
+    hits.sort(hits.length <= 5000
+      ? (a, b) => b[1] - a[1] || folderCollator.compare(a[0].name, b[0].name)
+      : (a, b) => b[1] - a[1] || (a[0].nf < b[0].nf ? -1 : a[0].nf > b[0].nf ? 1 : 0));
+    out.items = hits.map(([x]) => ({
+      name: x.name, path: x.path, folderToken: x.f.folderToken,
+      abs: x.f.path ? String(x.f.path).replace(/[\\/]+$/, '') + '\\' + String(x.path).replace(/\//g, '\\') : '',
+    }));
+    return out;
+  };
+
   Fs.openFolderFile = async function (folderToken, path, name, page) {
     try {
       const d = await PV.call('fs.openFolderFile', { folderToken, path });

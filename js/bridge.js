@@ -9,7 +9,7 @@
   const PORTS = [47917, 47918, 47919, 47920, 47921];
   const HOST = 'http://127.0.0.1:';
   PV.BRIDGE_URL = 'https://github.com/Hadabadra/achat-shaalti/releases/latest';
-  PV.BRIDGE_MIN = '1.0.1';
+  PV.BRIDGE_MIN = '1.0.1';            // גשר "אחת שאלתי" (מספור 1.x/2.x); לגשר הישן (3.x) ראו MINS למטה
   PV.BRIDGE_OPENWITH_MIN = '1.0.2'; // "פתח באמצעות" של Windows ← התוסף (/pdf/inbox)
 
   const B = (PV.bridge = { port: null, info: null });
@@ -28,16 +28,17 @@
   }
 
   // ── צימוד לגשר (3.0): מפתח אקראי שהגשר נותן אחרי אישור המשתמש בחלון שנפתח במחשב ──
-  const TOKEN_KEY = 'bridgeToken';
+  const TOKEN_KEY = 'bridgeToken';   // הגשר הישן (3.x) — המפתח הקיים נשמר כמו שהיה
+  const tokenKey = () => (B.info && B.family(B.info.version) === 'new' ? TOKEN_KEY + '_new' : TOKEN_KEY);
   let token = null, tokenLoaded = false, pairing = null;
   async function loadToken() {
     if (tokenLoaded) return token;
     tokenLoaded = true;
-    const v = await PV.store.get(TOKEN_KEY, null);
+    const v = await PV.store.get(tokenKey(), null);
     token = typeof v === 'string' && v.length >= 32 ? v : null;
     return token;
   }
-  async function saveToken(t) { token = t; await PV.store.set(TOKEN_KEY, t); }
+  async function saveToken(t) { token = t; await PV.store.set(tokenKey(), t); }
 
   async function request(port, path, body, timeoutMs, method) {
     const p = {
@@ -75,9 +76,11 @@
       request(port, '/health', null, 2500, 'GET')
         .then((d) => (d && d.name === 'otzaria-bridge' ? { port, info: d } : null))
         .catch(() => null)));
-    const hit = found.find(Boolean);
+    const hits = found.filter(Boolean);
+    const hit = hits.find((h) => B.family(h.info && h.info.version) === 'new') || hits[0];   // אם רצים שניהם — מעדיפים את החדש (יש לו יותר יכולות)
     if (!hit) return null;
     B.port = hit.port; B.info = hit.info;
+    tokenLoaded = false; await loadToken();   // מפתח הצימוד נשמר בנפרד לכל גשר
     return B.info;
   };
 
@@ -103,13 +106,24 @@
     }
   };
 
-  /** האם גרסת הגשר a נמוכה מ-b (למשל "3.0.0" < "3.1.0") */
-  // המספור החדש של הגשר (1.x/2.x, מ-18.10.2026) חדש מהמספור הישן (3.x) — ממפים אותו מעל, כדי ש-1.0.1 לא ייחשב "ישן"
-  const norm = (v) => { const n = String(v || '0').split('.').map(Number); if (n[0] >= 1 && n[0] < 3) n[0] += 100; return n; };
-  B.versionLt = function (a, b) {
-    const x = norm(a), y = norm(b);
-    for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); }
-    return false;
+  /** תאימות לשני הגשרים: הישן (3.x, למשל 3.9.1) והחדש ("אחת שאלתי", 1.x/2.x).
+   *  כל יכולת נבדקת מול הגרסה המינימלית של *אותו* גשר (משפחה), ולא מול מספור משותף — כך 3.9.1 לא נחשב "ישן" כי 1.0.1 קטן ממנו.
+   *  יכולות שקיימות רק בגשר החדש (פתיחה בתוכנה אחרת, כלי PDF) — לא נתמכות בישן. */
+  const MINS = {
+    base:     { old: '3.1.0', new: '1.0.1' },   // סריקת פורטים, OCR/חיפוש קבצים
+    write:    { old: '3.4.0', new: '1.0.0' },   // /fs/write-binary, /fs/pick-save-file
+    openwith: { new: '1.0.2' },                 // /pdf/inbox (פתח באמצעות)
+    pdftools: { new: '1.0.2' },                 // /pdf/op/*, /pdf/engines
+  };
+  const major = (v) => Number(String(v || '0').split('.')[0]) || 0;
+  B.family = (v) => (major(v === undefined ? (B.info && B.info.version) : v) >= 3 ? 'old' : 'new');
+  const numLt = (a, b2) => { const x = String(a || '0').split('.').map(Number), y = String(b2).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+  B.minFor = (cap, v) => (MINS[cap] || {})[B.family(v)] || null;
+  B.supports = (cap, v) => { const ver = v === undefined ? (B.info && B.info.version) : v; const m = B.minFor(cap, ver); return !!m && !numLt(ver, m); };
+  B.versionLt = function (a, b2) {
+    const fa = B.family(a), fb = B.family(b2);
+    if (fa !== fb) return fa === 'old';
+    return numLt(a, b2);
   };
 
   // ── כלי החיתוך (גשר 3.1.0+) ───────────────────────────────────────────
@@ -123,8 +137,8 @@
   B.lastRun = null;
   B.snipRecognizeCanvas = async function (canvas) {
     if (!B.port && !(await B.probe())) throw new Error(PV.t('הגשר לא זמין (לא מותקן או לא פועל)'));
-    if (B.versionLt(B.info && B.info.version, PV.BRIDGE_MIN)) {
-      throw new Error(PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה', { v: (B.info && B.info.version) || '?', m: PV.BRIDGE_MIN }));
+    if (!B.supports('base')) {
+      throw new Error(PV.t('גרסת הגשר ({v}) ישנה — נדרשת {m} ומעלה', { v: (B.info && B.info.version) || '?', m: B.minFor('base') || PV.BRIDGE_MIN }));
     }
     let reason = '';
     if (B.direct !== false) {
@@ -291,11 +305,11 @@
   // הגשר שם את הקובץ בתור ופותח את אוצריא בתוסף; כאן שולפים את התור בעלייה, בחזרה לתוסף ובבדיקה תקופתית.
   let inboxBusy = false;
   B.checkInbox = async function () {
-    if (inboxBusy || !PV.hasOtz()) return;
+    if (inboxBusy || !PV.hasOtz() || Date.now() < (B._inboxSkipUntil || 0)) return;
     inboxBusy = true;
     try {
-      if (!B.port && !(await B.probe())) return;
-      if (B.versionLt(B.info && B.info.version, PV.BRIDGE_OPENWITH_MIN)) return;
+      if (!B.port && !(await B.probe())) { B._inboxSkipUntil = Date.now() + 30000; return; }   // אין גשר: לא סורקים פורטים כל 3 שניות
+      if (!B.supports('openwith')) { B._inboxSkipUntil = Date.now() + 120000; return; }   // גשר ישן / בלי תור — לא בודקים כל 3 שניות
       const r = await B.call('/pdf/inbox/list', {}, 8000);
       const items = (r && r.items) || [];
       if (!items.length) return;
@@ -314,24 +328,39 @@
   B.initLiveSearch = function (input, ul, wrap) {
     if (!input || !ul) return;
     if (!PV.hasOtz()) { if (wrap) wrap.hidden = true; return; }
-    let roots = null, sig = { stop: true }, seq = 0;
+    let roots = null, rootsP = null, sig = { stop: true }, seq = 0, stale = false;
     const MAX = 100;
     const msg = (t) => { ul.innerHTML = ''; const li = document.createElement('li'); li.className = 'panel-empty'; li.textContent = t; ul.appendChild(li); };
     const close = () => { sig.stop = true; seq++; ul.hidden = true; ul.innerHTML = ''; input.setAttribute('aria-expanded', 'false'); };
-    async function getRoots() {
-      if (roots) return roots;
-      if (!(await B.probe())) throw new Error(PV.t('חיפוש קבצים דורש את גשר אוצריא פועל'));
-      try { roots = await B.roots(); }
-      catch (e) { if (e.code !== 'unpaired') throw e; await B.pair(); roots = await B.roots(); }
-      return roots;
+    // חיבור הגשר (גילוי + צימוד + רשימת כוננים). רץ ברקע ולא חוסם את התוצאות מהתיקיות שנוספו לתוסף;
+    // קריאות במקביל חולקות את אותו חיבור, ואם הוא נכשל — ההקלדה הבאה מנסה שוב.
+    function getRoots() {
+      if (roots) return Promise.resolve(roots);
+      if (!rootsP) {
+        rootsP = (async () => {
+          try {
+            if (!(await B.probe())) throw new Error(PV.t('חיפוש קבצים דורש את גשר אוצריא פועל'));
+            try { roots = await B.roots(); }
+            catch (e) { if (e.code !== 'unpaired') throw e; await B.pair(); roots = await B.roots(); }
+            return roots;
+          } finally { rootsP = null; }
+        })();
+      }
+      return rootsP;
     }
     async function open(h) {
       close(); input.value = '';
       await B.openDiskFile(h.path, h.name);
     }
+    async function openFolder(x) {
+      close(); input.value = '';
+      await PV.files.openFolderFile(x.folderToken, x.path, x.name);
+    }
+    const normPath = (p) => String(p || '').replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
     async function run() {
       const text = input.value.trim();
       sig.stop = true;
+      stale = false;
       if (text.length < 2) { close(); return; }
       // החיפוש בגשר הוא לפי תת-מחרוזת בשם. כדי להתעלם מרווחים/קו תחתון/מקף/גרשיים, שולחים לגשר את המילה הארוכה ביותר
       // עם כוכביות, ואת ההתאמה המלאה (כל המילים, בלי ניקוד, בכל סדר) בודקים כאן אחרי שהתוצאות מגיעות.
@@ -341,32 +370,83 @@
       const hlRe = PV.highlight ? PV.highlight.makeRe(need) : null;   // הדגשת המילים שנמצאו
       const serverQuery = '*' + rawTokens.reduce((a, t) => (t.length > a.length ? t : a), '') + '*';
       const my = ++seq, s = { stop: false }; sig = s;
-      ul.hidden = false; input.setAttribute('aria-expanded', 'true'); msg(PV.t('מחפש…'));
+      ul.hidden = false; input.setAttribute('aria-expanded', 'true');
+      ul.innerHTML = '';
       let n = 0; const seen = new Set();
+      // שורת מצב אחת בסוף הרשימה ("מחפש…", "מתחבר לגשר…"); פריטים חדשים נכנסים לפניה
+      let statusLi = null;
+      const setStatus = (t) => {
+        if (!t) { if (statusLi) { statusLi.remove(); statusLi = null; } return; }
+        if (!statusLi) { statusLi = document.createElement('li'); statusLi.className = 'panel-empty'; ul.appendChild(statusLi); }
+        statusLi.textContent = t;
+      };
+      const addItem = (li) => { if (statusLi) ul.insertBefore(li, statusLi); else ul.appendChild(li); };
+      const decorate = (li, pathInfo, subTitle) => {
+        const sub = li.querySelector('.li-sub'); if (sub) { sub.dir = 'ltr'; sub.title = subTitle; }
+        li.setAttribute('data-path-info', pathInfo);
+        if (hlRe) { PV.highlight.apply(li.querySelector('.li-title'), hlRe); PV.highlight.apply(li.querySelector('.li-sub'), hlRe); }
+      };
+      setStatus(PV.t('מחפש…'));
+
+      // שלב 1: התיקיות שנוספו לתוסף — מיד, בלי להמתין לגשר (המדד שלהן נבנה ברקע)
+      let fr = null;
+      try { fr = PV.files && PV.files.searchFolderFiles ? PV.files.searchFolderFiles(text) : null; } catch (e) { fr = null; }
+      if (fr) {
+        for (const x of fr.items) {
+          if (n >= MAX) break;
+          const key = x.abs ? normPath(x.abs) : '';
+          if (key) { if (seen.has(key)) continue; seen.add(key); }
+          n++;
+          const li = PV.files.makeItem(PV.files.fileIcon(x.name), x.name, x.abs || '', () => openFolder(x));
+          decorate(li, x.abs || x.name, x.abs || x.name);
+          addItem(li);
+        }
+        if (fr.scanning && fr.wait) {
+          // סריקה ראשונה של התיקיות עדיין רצה: כשהיא נגמרת מריצים את החיפוש מחדש עם המדד המלא
+          setStatus(PV.t('סורק את התיקיות…'));
+          fr.wait.then((idx) => { if (idx && my === seq && !s.stop && input.value.trim() === text) run(); });   // idx ריק = הסריקה נכשלה: לא מריצים שוב (מונע לולאה)
+        }
+      }
+
+      // שלב 2: כל המחשב דרך הגשר. אם הצימוד עדיין לא אושר — ההמתנה היא ברקע, וברגע שהוא מאושר התוצאות מתווספות כאן לבד
       try {
-        for (const r of await getRoots()) {
+        const pending = !roots;
+        if (pending && !(fr && fr.scanning)) setStatus(n ? PV.t('מתחבר לגשר… תוצאות נוספות מהמחשב יתווספו אוטומטית') : PV.t('מחפש…'));
+        const rs = await getRoots();
+        if (my !== seq) return;
+        if (s.stop) { stale = true; return; }   // הרשימה נסגרה בינתיים: ההקשה הבאה / החזרת המיקוד תריץ מחדש
+        if (!(fr && fr.scanning)) setStatus(PV.t('מחפש…'));
+        for (const r of rs) {
           if (s.stop || n >= MAX) break;
           await B.search({ root: r.path, query: serverQuery, includeDirs: false, maxResults: Math.min((MAX - n) * 4, 1000), extensions: EXT }, (h) => {
-            if (s.stop || n >= MAX || seen.has(h.path)) return;
+            if (s.stop || n >= MAX) return;
+            const key = normPath(h.path);
+            if (seen.has(key)) return;
             const hay = PV.nrmSearch(h.name);
             if (!need.every((t) => hay.indexOf(t) >= 0)) return;
-            seen.add(h.path);
-            if (!n) ul.innerHTML = '';
+            seen.add(key);
             n++;
             const li = PV.files.makeItem(PV.files.fileIcon(h.name), h.name, h.path, () => open(h));
-            const sub = li.querySelector('.li-sub'); if (sub) { sub.dir = 'ltr'; sub.title = h.path; }
-            li.setAttribute('data-path-info', h.path);
-            if (hlRe) { PV.highlight.apply(li.querySelector('.li-title'), hlRe); PV.highlight.apply(li.querySelector('.li-sub'), hlRe); }
-            ul.appendChild(li);
+            decorate(li, h.path, h.path);
+            addItem(li);
           }, s);
         }
-        if (my === seq && !s.stop && !n) msg(PV.t('לא נמצאו קבצים'));
-      } catch (e) { if (my === seq) msg(PV.errMsg(e)); }
+        if (my === seq && !s.stop) {
+          if (fr && fr.scanning) setStatus(PV.t('סורק את התיקיות…')); else setStatus(null);
+          if (!n && !(fr && fr.scanning)) msg(PV.t('לא נמצאו קבצים'));
+        }
+      } catch (e) {
+        if (my === seq) {
+          if (fr && fr.scanning) setStatus(PV.t('סורק את התיקיות…')); else setStatus(null);
+          if (!n && !(fr && fr.scanning)) msg(PV.errMsg(e));
+        }
+      }
     }
     input.setAttribute('role', 'combobox'); input.setAttribute('aria-expanded', 'false');
     input.addEventListener('input', PV.debounce(run, 300));
     PV.listNav(input, ul, { onEscape: (e) => { if (!ul.hidden) { e.stopPropagation(); close(); } else if (input.value) { e.stopPropagation(); input.value = ''; } } });
-    document.addEventListener('mousedown', (e) => { if (!(wrap || ul).contains(e.target)) { sig.stop = true; ul.hidden = true; input.setAttribute('aria-expanded', 'false'); } });
-    input.addEventListener('focus', () => { if (ul.children.length && input.value.trim().length >= 2) { ul.hidden = false; input.setAttribute('aria-expanded', 'true'); } });
+    // לחיצה מחוץ לרשימה סוגרת אותה — אבל לא לחיצה בתפריט ההקשר של הנתיב (#folder-ctx), שנפתח מלחיצה ימנית על תוצאה ברשימה הזו
+    document.addEventListener('mousedown', (e) => { if (!(wrap || ul).contains(e.target) && !(e.target.closest && e.target.closest('#folder-ctx'))) { sig.stop = true; ul.hidden = true; input.setAttribute('aria-expanded', 'false'); } });
+    input.addEventListener('focus', () => { if (stale && input.value.trim().length >= 2) { run(); return; } if (ul.children.length && input.value.trim().length >= 2) { ul.hidden = false; input.setAttribute('aria-expanded', 'true'); } });
   };
 })();

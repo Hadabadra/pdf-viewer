@@ -8,7 +8,7 @@
   PV.BRIDGE_WRITE_MIN = '1.0.0'; // /fs/write-binary (עם יצירת תיקיות) ו-/fs/pick-save-file
   const HOST_WRITE_MAX = 100 * 1024 * 1024 - 4096; // מגבלת אוצריא לכתיבה דרך חלון השמירה שלה (100MB)
   const IMG_PT = 72 / 150; // תמונה בלי DPI ידוע: מניחים 150 DPI
-  const DEF = { src: 'doc', ask: true, out: 'same', suffix: ' - OCR', outPath: '', outName: '', replace: true, skipDigital: true, sub: true, engine: '' };
+  const DEF = { src: 'doc', ask: true, out: 'same', suffix: ' - OCR', outPath: '', outName: '', replace: true, skipDigital: true, sub: true, engine: '', flatten: 'orig' };
   S.opts = Object.assign({}, DEF);
   S.srcFolder = null; // { folderToken, name, path } — תיקיית מקור שנבחרה לסריקה
   S.busy = false;
@@ -44,16 +44,19 @@
   S.layout = async function (canvas, engine, onProgress) {
     if (engine === 'windows') {
       if (O.mixedOn()) return O.hybridLayout(canvas, onProgress);   // Windows לעברית + Tesseract (מודל רש"י) לשורות ברש"י
-      const d = await B.ocrLayoutCanvas(canvas);
-      const out = [];
-      for (const ln of (d && d.lines) || []) {
-        const ws = (ln.words && ln.words.length) ? ln.words : [{ text: ln.text, box: ln.box }];
-        for (const w of ws) {
-          const t = String(w.text || '').trim();
-          if (t && w.box && w.box.length === 8) out.push({ text: t, q: w.box });
+      // כל אזור קריאה (טור ימין, טור שמאל, כותרת…) נקרא בנפרד, כך שהמילים בשכבה — ולכן גם בחירת טקסט בעכבר — עוברות טור אחרי טור
+      return O.byRegions(canvas, async (c) => {
+        const d = await B.ocrLayoutCanvas(c);
+        const out = [];
+        for (const ln of (d && d.lines) || []) {
+          const ws = (ln.words && ln.words.length) ? ln.words : [{ text: ln.text, box: ln.box }];
+          for (const w of ws) {
+            const t = String(w.text || '').trim();
+            if (t && w.box && w.box.length === 8) out.push({ text: t, q: w.box });
+          }
         }
-      }
-      return out;
+        return out;
+      }, onProgress);
     }
     return O.layoutTesseract(canvas, onProgress);
   };
@@ -76,6 +79,29 @@
   function toUserWords(words, vp, canvas) {
     const sx = canvas.width / vp.width, sy = canvas.height / vp.height;
     return words.map((w) => Object.assign({ text: w.text }, window.PdfText.wordToUser(vp, sx, sy, w.q)));
+  }
+
+  // איכות התמונה כשעמוד עם טקסט דיגיטלי מוחלף ונשמר כתמונה. orig (ברירת מחדל) = כמו תמיד: רזולוציית ה-OCR המלאה, JPEG באיכות 0.92.
+  // balanced/small מקטינים רק את התמונה שנשמרת בקובץ (לא את הקנבס של ה-OCR, ולא את מיקום המילים): נקבעת תקרת DPI ואיכות JPEG.
+  const FLATTEN = { orig: null, balanced: { dpi: 200, q: 0.92 }, small: { dpi: 150, q: 0.8 } };
+  async function flattenJpeg(canvas, vp1, mode) {
+    const preset = FLATTEN[mode] || null;
+    if (!preset) return new Uint8Array(await (await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.92))).arrayBuffer());
+    let src = canvas, tmp = null;
+    const dpi = (canvas.width / vp1.width) * 72;                 // הרזולוציה בפועל של הקנבס (נקודות PDF = 72 ל-DPI)
+    if (dpi > preset.dpi + 1) {                                  // לא מגדילים לעולם
+      const k = preset.dpi / dpi;
+      tmp = document.createElement('canvas');
+      tmp.width = Math.max(1, Math.round(canvas.width * k));
+      tmp.height = Math.max(1, Math.round(canvas.height * k));
+      const c2 = tmp.getContext('2d');
+      c2.fillStyle = '#fff'; c2.fillRect(0, 0, tmp.width, tmp.height);
+      c2.imageSmoothingEnabled = true; c2.imageSmoothingQuality = 'high';
+      c2.drawImage(canvas, 0, 0, tmp.width, tmp.height);
+      src = tmp;
+    }
+    try { return new Uint8Array(await (await new Promise((r) => src.toBlob(r, 'image/jpeg', preset.q))).arrayBuffer()); }
+    finally { if (tmp) { tmp.width = 0; tmp.height = 0; } }
   }
 
   function newStats() { return { pages: 0, done: 0, skippedDigital: 0, skippedHasOcr: 0, empty: 0, words: 0, replaced: 0, flattened: 0 }; }
@@ -128,8 +154,7 @@
         try {
           words = await S.layout(canvas, o.engine, (p) => o.onPage && o.onPage(i + 1, st.pages, p));
           if (flatten && words.length) {
-            const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.92));
-            flatBytes = new Uint8Array(await blob.arrayBuffer());
+            flatBytes = await flattenJpeg(canvas, vp1, o.flatten);
           }
         } finally { canvas.width = 0; canvas.height = 0; }
         if (!words.length) { st.empty++; continue; }
@@ -193,7 +218,7 @@
 
   // ── שמירה ─────────────────────────────────────────────────────────────
   function bridgeCanWrite() {
-    return PV.hasOtz() && B.port && !B.versionLt(B.info && B.info.version, PV.BRIDGE_WRITE_MIN);
+    return PV.hasOtz() && B.port && B.supports('write');
   }
   async function ensureBridge() {
     if (!PV.hasOtz()) return false;
@@ -259,7 +284,7 @@
       if (target.path) return await B.writeBinary(target.path, bytes, { overwrite: true }); // החלון כבר שאל על דריסה
       if (target.dir) return await B.writeBinary(joinPath(target.dir, file), bytes);
       if (bytes.length <= HOST_WRITE_MAX) return await saveViaHostDialog(bytes, stem + (S.opts.suffix || ''));
-      throw new Error(PV.t('הקובץ גדול מ-100MB, ואוצריא לא מאפשרת לתוסף לשמור קבצים כאלה בחלון השמירה שלה. נדרש גשר אוצריא {v} ומעלה', { v: PV.BRIDGE_WRITE_MIN }));
+      throw new Error(PV.t('הקובץ גדול מ-100MB, ואוצריא לא מאפשרת לתוסף לשמור קבצים כאלה בחלון השמירה שלה. נדרש גשר אוצריא {v} ומעלה', { v: (B.minFor && B.minFor('write')) || PV.BRIDGE_WRITE_MIN }));
     } catch (e) {
       if (!(await ensureBridge())) throw e;
       PV.toast(PV.t('השמירה נכשלה ({e}) — בחרו מיקום אחר, הזיהוי נשמר בזיכרון', { e: PV.errMsg(e) }), { long: true });
@@ -284,7 +309,7 @@
 
   function baseOptions(eng, cancelledRef, onPage) {
     return {
-      engine: eng.engine, replace: !!S.opts.replace, skipDigital: !!S.opts.skipDigital,
+      engine: eng.engine, replace: !!S.opts.replace, skipDigital: !!S.opts.skipDigital, flatten: S.opts.flatten,
       scale: Number(PV.settings.ocrQuality) || 2, cancelled: () => cancelledRef.v, onPage,
     };
   }
@@ -342,7 +367,7 @@
     if (!f) { PV.toast(PV.t('בחרו תיקייה לסריקה')); return; }
     if (!isAbs(f.path)) { PV.error(PV.t('לא ידוע נתיב התיקייה — בחרו אותה שוב')); return; }
     if (S.opts.out === 'folder' && !S.opts.outPath) { PV.toast(PV.t('בחרו תיקיית יעד')); return; }
-    if (!(await ensureBridge())) { PV.error(PV.t('שמירה לתיקייה דורשת גשר אוצריא {v} ומעלה (מחובר ופועל)', { v: PV.BRIDGE_WRITE_MIN })); return; }
+    if (!(await ensureBridge())) { PV.error(PV.t('שמירה לתיקייה דורשת גשר אוצריא {v} ומעלה (מחובר ופועל)', { v: (B.minFor && B.minFor('write')) || PV.BRIDGE_WRITE_MIN })); return; }
     const eng = await S.resolveEngine(S.opts.engine);
     const cancel = { v: false };
     S.cancelFn = () => { cancel.v = true; };
@@ -445,6 +470,8 @@
     $('s-engine').value = o.engine || '';
     $('s-replace').checked = !!o.replace;
     $('s-skip').checked = !!o.skipDigital;
+    $('s-flat').value = FLATTEN[o.flatten] ? o.flatten : 'orig';
+    $('s-flat-row').hidden = !(o.replace && !o.skipDigital);   // רלוונטי רק כשמוחלף טקסט דיגיטלי (והעמוד נשמר כתמונה)
     $('s-sub').checked = !!o.sub;
     $('s-ask').checked = !!o.ask;
     $('s-ask-row').hidden = o.src === 'folder';   // השאלה חלה על מסמך בודד; בסריקת תיקייה נשמר לפי המיקום שהוגדר
@@ -465,6 +492,7 @@
     $('s-ask').addEventListener('change', () => { o.ask = $('s-ask').checked; upd(); });
     $('s-replace').addEventListener('change', () => { o.replace = $('s-replace').checked; upd(); });
     $('s-skip').addEventListener('change', () => { o.skipDigital = $('s-skip').checked; upd(); });
+    $('s-flat').addEventListener('change', () => { o.flatten = $('s-flat').value; upd(); });
     $('s-sub').addEventListener('change', () => { o.sub = $('s-sub').checked; upd(); });
     $('s-out').addEventListener('change', () => { o.out = $('s-out').value; upd(); });
     $('s-suffix').addEventListener('change', () => { o.suffix = $('s-suffix').value.replace(/[\\/:*?"<>|]/g, ''); upd(); });
