@@ -56,6 +56,16 @@
   --shadow-busy: 0 10px 40px rgba(0, 0, 0, 0.35);
   --sidebar-width: 17em;
   --panel-width: 22em;
+  --color-pv-white: #FFFFFF;
+  --color-pv-black: #000000;
+  --color-pv-ring: rgba(0, 0, 0, 0.45);
+  --color-pv-ring-soft: rgba(0, 0, 0, 0.35);
+  --color-pv-hue-red: #f00;
+  --color-pv-hue-yellow: #ff0;
+  --color-pv-hue-green: #0f0;
+  --color-pv-hue-cyan: #0ff;
+  --color-pv-hue-blue: #00f;
+  --color-pv-hue-magenta: #f0f;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -737,7 +747,7 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
   box-sizing: border-box; padding: 0.45em 0.75em;
   border: 1px solid var(--color-outline); border-radius: var(--radius-sm);
   background: var(--color-surface); color: var(--color-on-surface);
-  font-family: inherit; font-size: 0.9em; cursor: pointer;
+  font-family: var(--font-main); font-size: 0.9em; cursor: pointer;
 }
 .color-picker-trigger:hover { border-color: var(--color-primary); }
 .color-picker-trigger.open .color-picker-chevron { transform: rotate(180deg); }
@@ -745,7 +755,7 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
   width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
   border: 1px solid var(--color-outline-variant);
   box-shadow: inset 0 0 0 2px var(--color-surface);
-  background-color: #ffffff;
+  background-color: var(--color-pv-white);
   background-image:
     linear-gradient(45deg, var(--color-outline-variant) 25%, transparent 25%, transparent 75%, var(--color-outline-variant) 75%),
     linear-gradient(45deg, var(--color-outline-variant) 25%, transparent 25%, transparent 75%, var(--color-outline-variant) 75%);
@@ -768,7 +778,7 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
 .color-picker-preset-swatch:hover { box-shadow: 0 0 0 1px var(--color-primary); }
 .color-picker-preset-swatch.selected { border-color: var(--color-surface-container-high); box-shadow: 0 0 0 2px var(--color-primary); }
 .color-picker-preset-swatch.none-swatch {
-  background-color: #fff;
+  background-color: var(--color-pv-white);
   background-image:
     linear-gradient(45deg, var(--color-outline) 25%, transparent 25%, transparent 75%, var(--color-outline) 75%),
     linear-gradient(45deg, var(--color-outline) 25%, transparent 25%, transparent 75%, var(--color-outline) 75%);
@@ -785,21 +795,21 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
   cursor: crosshair; overflow: hidden; touch-action: none; box-shadow: inset 0 0 0 1px var(--color-outline-variant);
 }
 .color-picker-sv-white, .color-picker-sv-black { position: absolute; inset: 0; }
-.color-picker-sv-white { background: linear-gradient(to right, #fff, rgba(255,255,255,0)); }
-.color-picker-sv-black { background: linear-gradient(to top, #000, rgba(0,0,0,0)); }
+.color-picker-sv-white { background: linear-gradient(to right, var(--color-pv-white), transparent); }
+.color-picker-sv-black { background: linear-gradient(to top, var(--color-pv-black), transparent); }
 .color-picker-sv-cursor {
-  position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.35);
+  position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-pv-white);
+  box-shadow: 0 0 0 1px var(--color-pv-ring), 0 1px 3px var(--color-pv-ring-soft);
   transform: translate(-50%, -50%); pointer-events: none;
 }
 .color-picker-hue {
   position: relative; width: 100%; height: 14px; border-radius: var(--radius-pill); cursor: pointer; touch-action: none;
-  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  background: linear-gradient(to right, var(--color-pv-hue-red), var(--color-pv-hue-yellow), var(--color-pv-hue-green), var(--color-pv-hue-cyan), var(--color-pv-hue-blue), var(--color-pv-hue-magenta), var(--color-pv-hue-red));
   box-shadow: inset 0 0 0 1px var(--color-outline-variant);
 }
 .color-picker-hue-cursor {
-  position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.35);
+  position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--color-pv-white);
+  box-shadow: 0 0 0 1px var(--color-pv-ring), 0 1px 3px var(--color-pv-ring-soft);
   transform: translate(-50%, -50%); background: transparent; pointer-events: none;
 }
 .color-picker-fields { display: flex; gap: 6px; align-items: flex-end; }
@@ -809,6 +819,6 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
 .color-picker-field input {
   width: 100%; box-sizing: border-box; padding: 6px 4px; text-align: center;
   border: 1px solid var(--color-outline); border-radius: var(--radius-sm);
-  background: var(--color-surface); color: var(--color-on-surface); font-family: inherit; font-size: 0.85em; direction: ltr;
+  background: var(--color-surface); color: var(--color-on-surface); font-family: var(--font-main); font-size: 0.85em; direction: ltr;
 }
 .color-picker-field input:focus { outline: none; border-color: var(--color-primary); }
