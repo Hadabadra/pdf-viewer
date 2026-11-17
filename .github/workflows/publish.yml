@@ -131,6 +131,8 @@ jobs:
               "הורד את קובץ ה-`.otzplugin` למטה, ובאוצריא:",
               "**כלים → 🧩 תוספים → ⊕ התקן תוסף חדש**, ובחר את הקובץ.",
               "",
+              "מודל כתב היד (`mishkefet-v1.bin`) יורד אוטומטית בשימוש הראשון. בלי רשת: הורידו אותו מכאן ובחרו אותו בהגדרות ← OCR ← „בחירת קובץ מודל“.",
+              "",
               "### Checksum",
               "```",
               "SHA-256: " + (process.env.SHA256 || "—"),
@@ -141,6 +143,10 @@ jobs:
           '
           cat release-notes.md
 
+      - name: מודל כתב היד להורדה ליד התוסף
+        if: steps.release_check.outputs.exists == 'false'
+        run: curl -sSfL -o mishkefet-v1.bin https://raw.githubusercontent.com/Hadabadra/pdf-viewer/mishkefet-model/mishkefet-v1.bin
+
       - name: יצירת GitHub Release
         if: steps.release_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -149,5 +155,7 @@ jobs:
           name: צופה PDF+OCR ${{ steps.meta.outputs.version }}
           draft: false
           prerelease: false
-          files: ${{ steps.otzaria.outputs.plugin-file }}
+          files: |
+            ${{ steps.otzaria.outputs.plugin-file }}
+            mishkefet-v1.bin
           body_path: release-notes.md

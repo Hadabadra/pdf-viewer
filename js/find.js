@@ -22,7 +22,7 @@
       seq.forEach((e) => {
         const it = tc.items[e.i], i = e.i;
         if (typeof it.str !== 'string') return;
-        if (e.sp) { text += ' '; map.push([i, 0]); }
+        if (e.sp) { text += ' '; map.push([i, 0, true]); }   // 6.0.1: רווח שנוסף באינדקס — לא תו אמיתי של הפריט, ולכן לא מודגש
         const str = ro && ro.mirror ? window.ReadOrder.mirror(it.str) : it.str;
         for (let c = 0; c < str.length; c++) {
           const ch = str[c];
@@ -31,7 +31,7 @@
           map.push([i, c]);
         }
         text += e.eol ? '\n' : '';
-        if (e.eol) map.push([i, it.str.length]);
+        if (e.eol) map.push([i, it.str.length, true]);
       });
     }
     const res = { text, map };
@@ -61,7 +61,10 @@
     F.query = nq;
     const gen = F.gen;
     $('find-count').textContent = PV.t('מחפש…');
-    const start = V.page;
+    // 6.0.1: נקודת העוגן היא המקום שבו הצופה נמצא בפועל (העמוד שבראש התצוגה ומיקום הגלילה בתוכו), לא רק מספר העמוד.
+    // קופצים לתוצאה הראשונה מהעוגן והלאה; רק אם אין כזו — לקרובה ביותר מאחור.
+    const anchor = anchorPos();
+    const start = anchor.page;
     // סריקה מהעמוד הנוכחי והלאה, ואז מההתחלה — כדי שהתוצאה הראשונה תהיה קרובה
     const order = [];
     for (let n = start; n <= V.count; n++) order.push(n);
@@ -74,16 +77,25 @@
       try { idx = await pageIndex(n, ignore); } catch (e) { continue; }
       if (gen !== F.gen) return;
       const flat = idx.text.replace(/\n/g, ' ');
+      const before = found.length;
       let pos = flat.indexOf(nq);
       while (pos >= 0) {
         found.push({ page: n, start: pos, end: pos + nq.length });
         pos = flat.indexOf(nq, pos + Math.max(1, nq.length));
       }
-      if (!jumped && found.length) {
-        jumped = true;
-        F.matches = found.slice().sort(cmp);
-        F.index = F.matches.indexOf(found[0]);
-        showCurrent();
+      if (!jumped && found.length > before && n >= start) {
+        // מועמדת לקפיצה: ראשונה אחרי העוגן (בעמוד העוגן — לפי המיקום האנכי; בעמודים שאחריו — הראשונה)
+        let pick = null;
+        for (let q = before; q < found.length && !pick; q++) {
+          if (n > start || await afterAnchor(n, idx, found[q], anchor)) pick = found[q];
+          if (gen !== F.gen) return;
+        }
+        if (pick) {
+          jumped = true;
+          F.matches = found.slice().sort(cmp);
+          F.index = F.matches.indexOf(pick);
+          showCurrent();
+        }
       }
       if (k % 25 === 24) {
         $('find-count').textContent = PV.t('מחפש… {n}%', { n: Math.round((k / order.length) * 100) });
@@ -94,11 +106,49 @@
     const current = F.matches[F.index];
     F.matches = found.sort(cmp);
     F.index = current ? F.matches.findIndex((m) => m.page === current.page && m.start === current.start) : -1;
+    if (!current && F.matches.length) {
+      // אין תוצאה מהעוגן והלאה — הקרובה ביותר מאחור (האחרונה לפני העוגן)
+      let back = F.matches.length - 1;
+      for (let q = F.matches.length - 1; q >= 0; q--) {
+        const m = F.matches[q];
+        if (m.page < anchor.page || (m.page === anchor.page)) { back = q; break; }
+      }
+      F.index = back;
+      showCurrent();
+    }
     updateCount();
     highlightRendered();
     if (!F.matches.length) $('find-count').textContent = PV.t('לא נמצא');
   };
   const cmp = (a, b) => a.page - b.page || a.start - b.start;
+
+  /** 6.0.1: העמוד שבראש התצוגה והמיקום (שבר מגובה העמוד, מראש העמוד) של ראש התצוגה בתוכו. */
+  function anchorPos() {
+    const vw = $('viewer');
+    let page = Math.max(1, Math.min(V.count, V.page || 1)), frac = 0;
+    try {
+      const st = vw.scrollTop + 1;
+      while (page > 1 && V.els[page - 1] && V.els[page - 1].offsetTop > st) page--;
+      while (page < V.count && V.els[page] && V.els[page - 1].offsetTop + V.els[page - 1].offsetHeight <= st) page++;
+      const el = V.els[page - 1];
+      if (el) frac = Math.max(0, (vw.scrollTop - el.offsetTop) / Math.max(1, el.offsetHeight));
+    } catch (e) { /* נשארים עם העמוד הנוכחי */ }
+    return { page, frac };
+  }
+  /** האם התוצאה m (בעמוד העוגן) נמצאת בעוגן או אחריו. לפי המיקום האנכי של הפריט בעמוד; אם אי אפשר לחשב (עמוד מסובב) — לפי סדר הקריאה. */
+  async function afterAnchor(n, idx, m, anchor) {
+    if (anchor.frac <= 0) return true;
+    try {
+      const ent = idx.map[m.start];
+      const tc = await V.getPageTextContent(n);
+      const page = await V.doc.pdf.getPage(n);
+      const it = tc && ent && tc.items[ent[0]];
+      const h = V.pageBox[n - 1] && V.pageBox[n - 1].h;
+      if (!it || !it.transform || !h || (page.rotate % 360) !== 0 || V.rotation) return true;
+      const y = (h - it.transform[5] - Math.abs(it.transform[3])) / h;   // ראש השורה, שבר מגובה העמוד מלמעלה
+      return y >= anchor.frac - 0.002;
+    } catch (e) { return true; }
+  }
 
   function updateCount() {
     $('find-count').textContent = F.matches.length ? (F.index + 1) + ' / ' + F.matches.length : '';
@@ -142,7 +192,8 @@
     ms.forEach((m) => {
       const isCur = F.matches[F.index] === m;
       for (let p = m.start; p < m.end && p < idx.map.length; p++) {
-        const [item, ch] = idx.map[p];
+        const [item, ch, synthetic] = idx.map[p];
+        if (synthetic) continue;   // 6.0.1: רווחים ומעברי שורה של האינדקס לא ממופים לתו אמיתי — קודם הם יצרו טווחים כפולים ושיבשו את הטקסט בשכבה
         if (!perItem.has(item)) perItem.set(item, []);
         const arr = perItem.get(item);
         const last = arr[arr.length - 1];
@@ -179,7 +230,7 @@
     $('findbar').hidden = false;
     const sel = String(window.getSelection() || '').trim();
     if (sel && sel.length < 80 && !sel.includes('\n')) $('find-input').value = sel;
-    $('find-input').focus();
+    $('find-input').focus({ preventScroll: true });   // 6.0.1: בלי זה הדפדפן גולל את הצופה (פס החיפוש בתוכו) לתחילת המסמך
     $('find-input').select();
     if ($('find-input').value) F.search($('find-input').value);
   };

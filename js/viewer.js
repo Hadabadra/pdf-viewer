@@ -306,11 +306,13 @@
 
   // מידות מדויקות לכל עמוד (עמודים בגדלים שונים) — ברקע, בלי לעכב את הפתיחה
   async function measurePagesInBackground(gen) {
-    const pdf = V.doc && V.doc.pdf;
+    const doc = V.doc, pdf = doc && doc.pdf;
     if (!pdf) return;
     let changed = false;
     for (let n = 1; n <= V.count; n++) {
-      if (gen !== V.gen) return;
+      // 6.0.1: המדידה נעצרת רק כשהמסמך הוחלף. קודם היא נעצרה כשמונה הדורות (V.gen) השתנה — וזה קורה מיד אחרי הפתיחה (setZoom)
+      // ולכן המדידה בקבצים עם עמודים בגדלים שונים לא רצה בכלל, ושכבת הטקסט לא הותאמה למידות העמוד.
+      if (V.doc !== doc) return;
       try {
         const p = await pdf.getPage(n);
         const vp = p.getViewport({ scale: 1 });
@@ -322,8 +324,8 @@
       } catch (e) { /* עמוד פגום — נשאר במידות ברירת המחדל */ }
       if (n % 40 === 0) await new Promise((r) => setTimeout(r, 0));
     }
-    if (gen === V.gen && V.doc) V.doc.measured = true;
-    if (changed && gen === V.gen) relayout(true);
+    if (V.doc === doc) doc.measured = true;
+    if (changed && V.doc === doc) relayout(true);
   }
 
   function buildPages() {

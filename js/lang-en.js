@@ -469,6 +469,8 @@ window.PV_LANG_EN = {
   'הקובץ החדש יישמר ליד המקור עם הסיומת בשם. קובץ קיים לא נדרס (נוסף מספר).': 'The new file is saved next to the source with the suffix in its name. An existing file is never overwritten (a number is added).',
   'הקבצים יישמרו בתיקייה שנבחרה (בסריקת תיקייה — עם אותו מבנה תת-תיקיות). קובץ קיים לא נדרס.': 'Files are saved in the chosen folder (when scanning a folder — with the same subfolder structure). An existing file is never overwritten.',
   'המנוע הישיר של Windows אינו זמין — נעשה שימוש ב-Tesseract': 'The direct Windows engine is not available — Tesseract was used',
+  'הגשר לא נמצא — לכן נעשה שימוש במודל הרגיל (Tesseract)': 'The bridge was not found — so the regular model (Tesseract) was used',
+  'הגשר לא נמצא — נעשה שימוש במודל הרגיל': 'The bridge was not found — the regular model was used',
   'רכיב ה-PDF לא נטען': 'The PDF component did not load',
   'המסמך מוצפן או מוגן בסיסמה': 'The document is encrypted or password-protected',
   'לא ניתן לקרוא את ה-PDF: {e}': 'Cannot read the PDF: {e}',

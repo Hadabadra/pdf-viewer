@@ -65,7 +65,7 @@
   O.rashiCode = () => RASHI_FILES[rashiKey()];
   // המודלים ארוזים כקבצי JS קטנים (vendor/lang-data/<קוד>.<n>.js, כ-0.9MB כל אחד, base64 של נתונים מעורבלים ב-XOR) ונטענים בתג script —
   // התוסף לא יכול לקרוא קבצים רגילים (fetch/XHR נחסמים), ורק סקריפטים נטענים. קובץ JS בודד וגדול הכשיל את ההתקנה, ולכן הפיצול.
-  const LANG_CHUNKS = {"heb_best": 6, "heb_rashi": 10, "heb_rashi_fast": 10};
+  const LANG_CHUNKS = {"heb_best": 6, "heb_rashi": 10, "heb_rashi_fast": 5};
   const LANG_SEED = 0x9E3779B9 | 0;
   const bundledLangs = {};   // code → Promise<base64|null>
   const bundledErr = {};     // code → סיבת הכשל האחרונה (לאבחון)
@@ -124,7 +124,7 @@
   O.engineFor = (override) => {
     if (override === 'snip') return 'snip';
     if (O.rashiOn()) return 'tesseract';
-    if (!override && customHeb()) return 'tesseract';   // נבחר מודל עברי מותאם: Tesseract עם המודל הזה (גובר על Windows)
+    if (!override && customHeb() && PV.settings.ocrEngine !== 'mishkefet') return 'tesseract';   // נבחר מודל עברי מותאם: Tesseract עם המודל הזה (גובר על Windows)
     const e = override || PV.settings.ocrEngine;
     return e === 'tesseract-fast' ? 'tesseract' : e;
   };
@@ -138,6 +138,7 @@
       return hybridWindows() ? 'Windows + Tesseract (' + PV.t('מעורב') + ': ' + PV.t('רש"י') + ' ' + partLabel(rashiPart()) + ')'
         : 'Tesseract (' + PV.t('מעורב') + ': ' + PV.t('עברי') + ' ' + partLabel(hebPart()) + ' + ' + PV.t('רש"י') + ' ' + partLabel(rashiPart()) + ')';
     }
+    if (PV.settings.ocrEngine === 'mishkefet') return PV.t('כתב יד (משקפת)');
     return win && !customHeb() ? 'Windows' : 'Tesseract (' + partLabel(hebPart()) + ')';
   };
 
@@ -232,11 +233,13 @@
       if (r.ms) bits.push(PV.t('טעינה') + ' ' + f(r.ms.load || 0) + ' · ' + PV.t('זיהוי') + ' ' + f(r.ms.ocr || 0) + (r.ms.ort ? ' · ORT ' + r.ms.ort : ''));
       if (r.size) bits.push(r.size);
       if (bits.length) s += ' (' + bits.join(' · ') + ')';
-    } else if (r.engine === 'snip-ui') s = PV.t('כלי החיתוך (דרך החלון) — המנוע הישיר לא פעל');
+    } else if (r.engine === 'mishkefet') s = PV.t('כתב יד (משקפת)');
+    else if (r.engine === 'snip-ui') s = PV.t('כלי החיתוך (דרך החלון) — המנוע הישיר לא פעל');
     else if (r.engine === 'hybrid') s = 'Windows + Tesseract · ' + PV.t('מעורב') + ' (' + PV.t('מודל רש"י') + ' ' + partLabel(r.rashiModel) + ')';
     else if (r.kind === 'rashi') s = 'Tesseract · ' + PV.t('מודל רש"י') + ' (' + partLabel(r.rashiModel) + ')';
     else if (r.kind === 'mixed') s = 'Tesseract · ' + PV.t('מעורב') + ' (' + PV.t('עברי') + ' ' + partLabel(r.hebModel) + ' + ' + PV.t('רש"י') + ' ' + partLabel(r.rashiModel) + ')';
     else s = 'Tesseract (' + partLabel(r.hebModel) + ')';
+    if (r.bridgeMissing) s += ' · ' + PV.t('הגשר לא נמצא — נעשה שימוש במודל הרגיל');
     if (sec != null) s += ' · ' + sec.toFixed(1) + ' ' + PV.t('שנ׳');
     return s;
   }
@@ -371,6 +374,17 @@
   };
   /** ropts.psm — מצב פענוח של Tesseract. '3' (פריסה אוטומטית) לעמוד שלם שלא פוצל; '6' (גוש אחד) לטור בודד, לאזור קטן ולשורה. ב-tesseract.js ברירת המחדל הייתה '6' (גוש אחד), ולכן דף בשני טורים נקרא כשורות מעורבבות. */
   O.recognizeOne = async function (source, onProgress, ropts) {
+    let noBridge = false;   // 6.0.1: נבחר Windows והגשר לא נמצא — הזיהוי עובר ל-Tesseract
+    if (currentEngine() === 'mishkefet' && source instanceof HTMLCanvasElement && PV.mishkefet) {
+      try {
+        const t = await PV.mishkefet.recognize(source, onProgress);
+        O.lastRun = { engine: 'mishkefet' };
+        return tidy(t);
+      } catch (e) {
+        // המודל לא זמין (אין רשת / הכתובת לא אושרה) — ממשיכים ב-Tesseract עם הודעה
+        PV.toast(PV.errMsg(e), { long: true });
+      }
+    }
     if (currentEngine() === 'snip' && source instanceof HTMLCanvasElement) {
       if (O.mixedOn()) {
         // מעורב עם Windows: Windows לעברית + Tesseract (מודל רש"י) לשורות ברש"י. אם המנוע הישיר לא זמין — Tesseract מעורב
@@ -379,9 +393,13 @@
           O.lastRun = { engine: 'hybrid', rashiModel: usedRashi[tagFor('rashi')] || rashiPart() };
           return tidy(lines.map((l) => l.text).filter(Boolean).join('\n'));
         }
-        warnNoDirect();
+        if (await bridgeNotFound()) { noBridge = true; toastBridgeMissing(); } else warnNoDirect();   // 6.0.1: הגשר לא נמצא — הודעה ייעודית
+      } else if (await bridgeNotFound()) {
+        // 6.0.1: הגשר לא נמצא (לא מותקן / לא פועל) — לא נכשלים, אלא עוברים למודל הרגיל (Tesseract) ומודיעים על כך
+        noBridge = true;
+        toastBridgeMissing();
       } else {
-        // כלי החיתוך של Windows דרך הגשר. בכשל — שגיאה גלויה, בלי מעבר שקט ל-Tesseract
+        // כלי החיתוך של Windows דרך הגשר. בכשל אחר (גרסה ישנה, שגיאת זיהוי…) — שגיאה גלויה, בלי מעבר שקט ל-Tesseract
         const t = await PV.bridge.snipRecognizeCanvas(source);
         O.lastRun = PV.bridge.lastRun;
         if (onProgress) onProgress(1);
@@ -391,6 +409,7 @@
     const kind = scriptKind();
     const w = await getWorker(kind);
     O.lastRun = { engine: 'tesseract', kind, hebModel: usedHeb[tagFor(kind)] || hebPart(), rashiModel: usedRashi[tagFor(kind)] || rashiPart() };
+    if (noBridge) O.lastRun.bridgeMissing = true;
     progressHook = onProgress || null;
     try {
       await w.setParameters({ tessedit_pageseg_mode: (ropts && ropts.psm) || '6' });
@@ -448,6 +467,23 @@
     if (warnedDirect) return;
     warnedDirect = true;
     PV.toast(PV.t('המנוע הישיר של Windows אינו זמין — נעשה שימוש ב-Tesseract'));
+  }
+  // 6.0.1: הגשר לא נמצא — בדיקה (עם זיכרון קצר לכישלון, כדי שלא לסרוק פורטים בכל אזור/עמוד) והודעה
+  let bridgeMissUntil = 0, bridgeToastAt = 0;
+  async function bridgeNotFound() {
+    if (!PV.hasOtz()) return true;
+    if (PV.bridge.port) return false;
+    if (Date.now() < bridgeMissUntil) return true;
+    let info = null;
+    try { info = await PV.bridge.probe(); } catch (e) { info = null; }
+    if (info) { bridgeMissUntil = 0; return false; }
+    bridgeMissUntil = Date.now() + 20000;
+    return true;
+  }
+  function toastBridgeMissing() {
+    if (Date.now() - bridgeToastAt < 30000) return;
+    bridgeToastAt = Date.now();
+    PV.toast(PV.t('הגשר לא נמצא — לכן נעשה שימוש במודל הרגיל (Tesseract)'), { long: true });
   }
   const boxBounds = (b) => ({ x0: Math.min(b[0], b[2], b[4], b[6]), x1: Math.max(b[0], b[2], b[4], b[6]), y0: Math.min(b[1], b[3], b[5], b[7]), y1: Math.max(b[1], b[3], b[5], b[7]) });
   /** שורות ממוזגות: [{ text, bb, words:[{text,q}] }] — Windows, ובמקום השורות ברש"י שזוהו ב-Tesseract */

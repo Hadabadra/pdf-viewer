@@ -392,7 +392,11 @@ body.page-tint .thumb canvas { filter: url(#pv-page-tint); }
 .textLayer span, .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
 .textLayer span.markedContent { top: 0; height: 0; }
 .textLayer ::selection { background: var(--color-selection); }
-.textLayer .match { background: var(--color-match); border-radius: var(--radius-xs); }
+/* 6.0.2: סימון התוצאה הוא span בתוך פריט הטקסט, וכלל .textLayer span (למעלה) הפך אותו ל-absolute — הוא יצא מהזרימה וזז שמאלה ולמעלה מהמילה. static מחזיר אותו לזרימה */
+.textLayer .match { position: static; background: var(--color-match); border-radius: var(--radius-xs); }
+/* 6.0.2: סימון החיפוש המובנה של הדפדפן (Ctrl+F) צובע את אותיות השכבה בצבע גלוי, ונראית המילה בגופן השכבה במקום המילה שבספר. הטקסט נשאר שקוף והרקע הצבוע בלבד נראה. כלל נפרד כי דפדפן שלא מכיר את הסלקטור מתעלם מכל הכלל */
+.textLayer ::search-text { color: transparent; }
+.textLayer ::search-text:current { color: transparent; }
 .textLayer .match.current { background: var(--color-match-current); }
 .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
 
@@ -510,6 +514,7 @@ kbd {
 .menu-label { font-size: 0.78em; font-weight: 600; color: var(--color-on-surface-variant); padding: 0.4em 1em 0.2em; }
 
 /* פס חיפוש בתוך המסמך (קטן, בעיצוב סרגל הכלים) */
+.findbar-holder { position: sticky; top: 0; height: 0; z-index: 30; }   /* 6.0.1 */
 .findbar {
   position: absolute; top: 0.6em; inset-inline-end: 1.2em; z-index: 30;
   display: flex; align-items: center; gap: 0.2em; padding: 0.3em 0.4em;
@@ -822,3 +827,5 @@ body.toolbar-hidden .tb-toggle svg { transform: rotate(180deg); }
   background: var(--color-surface); color: var(--color-on-surface); font-family: var(--font-main); font-size: 0.85em; direction: ltr;
 }
 .color-picker-field input:focus { outline: none; border-color: var(--color-primary); }
+/* 6.1.0: כפתורי מודל כתב היד בשורת ההגדרות */
+.row-actions { display: flex; gap: 0.5em; flex-wrap: wrap; }

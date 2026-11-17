@@ -35,7 +35,11 @@
     const warn = [];
     if (e === 'windows') {
       const ok = PV.hasOtz() && await B.directAvailable();
-      if (!ok) { e = 'tesseract'; warn.push(PV.t('המנוע הישיר של Windows אינו זמין — נעשה שימוש ב-Tesseract')); }
+      if (!ok) {
+        e = 'tesseract';
+        // 6.0.1: הגשר לא נמצא — הודעה ייעודית (אחרת: המנוע הישיר עצמו לא זמין)
+        warn.push(!PV.hasOtz() || !B.port ? PV.t('הגשר לא נמצא — לכן נעשה שימוש במודל הרגיל (Tesseract)') : PV.t('המנוע הישיר של Windows אינו זמין — נעשה שימוש ב-Tesseract'));
+      }
     }
     return { engine: e, warn };
   };

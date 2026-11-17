@@ -360,11 +360,13 @@
     else if (e.key === 'End' && mod) { e.preventDefault(); V.goTo(V.count); }
     else if (e.key === 'Home' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(1); }
     else if (e.key === 'End' && typeof V.zoomMode === 'string' && V.zoomMode === 'fit-page') { e.preventDefault(); V.goTo(V.count); }
-    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey && !e.metaKey) {
-      // חצים מחליפים עמוד בכל מצב תקריב (גם אחרי שינוי עם +/-, כשהתקריב הוא מספר ולא התאמה). Shift+חצים: גלילה לצדדים כשהעמוד רחב מהחלון
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.altKey) {
+      // 6.0.1: חצים לבד מחליפים עמוד. Shift+חצים — לא נוגעים (סימון טקסט בדפדפן). Ctrl+חץ ימינה/שמאלה — גלילת הדף לצדדים כשהוא רחב מהתצוגה
+      if (e.shiftKey) return;
       const vw = $('viewer');
-      if (e.shiftKey && vw && vw.scrollWidth > vw.clientWidth + 2) { e.preventDefault(); vw.scrollBy({ left: e.key === 'ArrowLeft' ? -80 : 80 }); }
-      else {
+      if (e.ctrlKey || e.metaKey) {
+        if (vw && vw.scrollWidth > vw.clientWidth + 2) { e.preventDefault(); vw.scrollBy({ left: e.key === 'ArrowLeft' ? -80 : 80 }); }
+      } else {
         e.preventDefault();
         const forward = (e.key === 'ArrowLeft') === (document.documentElement.dir === 'rtl');
         forward ? V.next() : V.prev();
@@ -812,6 +814,16 @@
     bindSetting('set-ocr-quality', 'ocrQuality', Number);
     bindSetting('set-ocr-lines', 'ocrLines');
     bindSetting('set-ocr-engine', 'ocrEngine');
+    const mkStatus = async () => {
+      const on = PV.mishkefet && await PV.mishkefet.isCached();
+      $('mk-status').textContent = on ? PV.t('המודל שמור במחשב ומוכן לשימוש.') : PV.t('המודל עוד לא הורד. הוא יורד אוטומטית בזיהוי הראשון בכתב יד (כ-58MB), או שאפשר לבחור קובץ שהורד ידנית.');
+    };
+    mkStatus();
+    $('mk-pick').addEventListener('click', async () => {
+      try { if (await PV.mishkefet.pickModelFile()) PV.toast(PV.t('מודל כתב היד נטען ונשמר')); } catch (e) { PV.toast(PV.errMsg(e), { long: true }); }
+      mkStatus();
+    });
+    $('mk-clear').addEventListener('click', async () => { PV.mishkefet.reset(); await PV.mishkefet.clearCache(); mkStatus(); });
     bindSetting('set-ocr-cols', 'ocrCols');
     refreshSnip(false);
     bindStoreSwitch('set-library', 'showInLibrary', (on) => { if (on) Fs.syncLibrary({ verbose: true }); else $('library-sync-status').textContent = PV.t('הקבצים הוסתרו מחיפוש הספרייה'); });

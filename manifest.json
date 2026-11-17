@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "com.chadbedera.pdfviewer",
   "name": "צופה PDF+OCR",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "description": "צופה PDF, תמונות ומסמכים בעיצוב אוצריא: חיפוש, תוכן עניינים, OCR בעברית, התיקיות שלי בחיפוש הספרייה ופתיחת ספרי PDF בעמוד הנוכחי.",
-  "author": "חד בדרא",
+  "author": "חד בדרא, arye000001-boop",
   "homepage": "https://github.com/Hadabadra/pdf-viewer",
   "type": "webapp",
   "category": "Utilities",
@@ -16,7 +16,8 @@
     "enabled": true,
     "allowlist": [
       "127.0.0.1",
-      "localhost"
+      "localhost",
+      "https://raw.githubusercontent.com/Hadabadra/pdf-viewer/mishkefet-model/mishkefet-v1.bin"
     ]
   },
   "permissions": [
@@ -34,7 +35,8 @@
     "app.open_url",
     "network.localhost",
     "events.subscribe:settings.changed",
-    "events.subscribe:plugin.permissions_changed"
+    "events.subscribe:plugin.permissions_changed",
+    "network.access"
   ],
   "contributes": {
     "toolTab": {

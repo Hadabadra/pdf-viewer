@@ -147,6 +147,17 @@
     </aside>
 
     <main class="viewer" id="viewer" tabindex="0">
+      <!-- 6.0.1: פס החיפוש בתוך מעטפת דביקה בגובה אפס — נשאר בראש התצוגה גם כשהמסמך גולל, כך שפתיחת החיפוש לא צריכה לגלול לראש המסמך -->
+      <div class="findbar-holder">
+        <div class="findbar" id="findbar" hidden>
+          <button class="tb-btn small" id="find-close" title="סגירה (Esc)"><i data-icon="s_x"></i></button>
+          <input type="text" id="find-input" placeholder="חיפוש במסמך…" aria-label="חיפוש במסמך">
+          <label class="find-opt" title="התעלמות מניקוד וטעמים"><input type="checkbox" id="find-nikud" checked><span>בלי ניקוד</span></label>
+          <span class="find-count" id="find-count" data-t-skip></span>
+          <button class="tb-btn small" id="find-prev" title="התוצאה הקודמת (Shift+Enter)"><i data-icon="s_chevron_up"></i></button>
+          <button class="tb-btn small" id="find-next" title="התוצאה הבאה (Enter)"><i data-icon="s_chevron_down"></i></button>
+        </div>
+      </div>
       <div class="pages" id="pages"></div>
       <div class="welcome" id="welcome">
         <div class="welcome-card">
@@ -168,14 +179,6 @@
           </div>
           <div class="kbd-hint">PDF · PNG/JPG/TIFF · DOCX · EPUB · PPTX · XLSX · TXT · HTML</div>
         </div>
-      </div>
-      <div class="findbar" id="findbar" hidden>
-        <button class="tb-btn small" id="find-close" title="סגירה (Esc)"><i data-icon="s_x"></i></button>
-        <input type="text" id="find-input" placeholder="חיפוש במסמך…" aria-label="חיפוש במסמך">
-        <label class="find-opt" title="התעלמות מניקוד וטעמים"><input type="checkbox" id="find-nikud" checked><span>בלי ניקוד</span></label>
-        <span class="find-count" id="find-count" data-t-skip></span>
-        <button class="tb-btn small" id="find-prev" title="התוצאה הקודמת (Shift+Enter)"><i data-icon="s_chevron_up"></i></button>
-        <button class="tb-btn small" id="find-next" title="התוצאה הבאה (Enter)"><i data-icon="s_chevron_down"></i></button>
       </div>
     </main>
 
@@ -333,7 +336,10 @@
             <option value="tesseract">Tesseract — מדויק (מובנה)</option>
             <option value="tesseract-fast">Tesseract — מהיר (מובנה)</option>
             <option value="snip" id="opt-ocr-snip">מנוע Windows (דרך הגשר)</option>
+            <option value="mishkefet">כתב יד — משקפת (המודל יורד פעם אחת)</option>
           </select></div>
+        <div class="setting-row" id="row-mishkefet"><div class="sr-text"><b>מודל כתב יד (משקפת)</b><span id="mk-status">מודל לזיהוי כתב יד עברי. יורד פעם אחת מ-GitHub בשימוש הראשון ונשמר במחשב. בלי רשת — אפשר להוריד את הקובץ ולבחור אותו כאן.</span></div>
+          <div class="row-actions"><button class="btn compact" id="mk-pick">בחירת קובץ מודל</button><button class="btn compact" id="mk-clear">מחיקת המודל השמור</button></div></div>
         <div class="setting-row" id="row-rashi-model"><div class="sr-text"><b>מנוע זיהוי כתב רש"י</b><span>מודל Tesseract לכתב רש"י (בחירת "רש"י" בתפריט הזיהוי). מדויק: זיהוי טוב יותר ואיטי יותר · מהיר: קטן ומהיר יותר, פחות מדויק</span></div>
           <select class="select" id="set-rashi-model">
             <option value="best">מדויק</option>
@@ -415,6 +421,29 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>6.1.0</span>
+        <ul>
+          <li><b>חדש: זיהוי כתב יד עם „משקפת“</b> (Mishkefet-v1 של איתי ענבר). בהגדרות ← OCR ← מנוע זיהוי בוחרים „כתב יד — משקפת“. המודל (כ-58MB) גדול ממגבלת החנות, ולכן הוא יורד פעם אחת בזיהוי הראשון ונשמר במחשב. בלי רשת אפשר להוריד את הקובץ <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/raw/mishkefet-model/mishkefet-v1.bin">מכאן</a> ולבחור אותו בהגדרות.</li>
+          <li>אם המודל לא זמין, הזיהוי ממשיך ב-Tesseract ומוצגת הודעה.</li>
+          <li>אריה (arye000001-boop) נוסף כמחבר. כל התיקונים שלו מ-6.0.1 ו-6.0.2 כלולים.</li>
+          <li>הפיתוח של חד בדרא מושהה. מחכים למי שרוצה להמשיך: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer">קוד המקור</a> · <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/issues/new">בקשת הצטרפות</a></li>
+        </ul>
+        <span class="version-tag" data-t-skip>6.0.2</span>
+        <ul>
+          <li>חיפוש בסרגל הכלים: הסימון של התוצאה הופיע שמאלה ומעט למעלה מהמילה. עכשיו הוא מופיע בדיוק על המילה.</li>
+          <li>חיפוש מובנה של הדפדפן (Ctrl+F): בסימון התוצאה הופיעה המילה בגופן שכבת הטקסט במקום המילה שבספר. עכשיו האותיות נשארות שקופות ונראית המילה שבספר (דורש דפדפן חדש יחסית; בדפדפן ישן ההתנהגות לא משתנה).</li>
+          <li>לא השתנה: כל שאר התכונות וההגדרות.</li>
+        </ul>
+        <span class="version-tag" data-t-skip>6.0.1</span>
+        <ul>
+          <li>חיפוש: פתיחת החיפוש כבר לא קופצת לתחילת הספר — המסמך נשאר במקומו. פס החיפוש נשאר בראש התצוגה גם כשגוללים.</li>
+          <li>חיפוש: ההקלדה קופצת לתוצאה הקרובה ביותר מהמקום שבו אתם נמצאים (כולל מיקום הגלילה בתוך העמוד) והלאה, ורק אם אין כזו — לקרובה ביותר מאחור.</li>
+          <li>חיפוש: תיקון בסימון — רווחים ומעברי שורה פנימיים של האינדקס כבר לא ממופים לאותיות אמיתיות, ולא משבשים את הטקסט בשכבה.</li>
+          <li>תיקון שכבת הטקסט במסמכים שעמודיהם בגדלים שונים (למשל „דרך ישרה“): המדידה של גדלי העמודים בוטלה מיד אחרי הפתיחה, ולכן השכבה לא התיישרה עם העמוד, וסימוני החיפוש והבחירה הופיעו על מילים אחרות.</li>
+          <li>OCR: כשמוגדר Windows והגשר לא נמצא, הזיהוי עובר אוטומטית למודל הרגיל (Tesseract) ומוצגת הודעה על כך, במקום שגיאה.</li>
+          <li>מקשים: חצים לבד מחליפים עמוד; Shift+חצים מסמנים טקסט (קדימה, אחורה, שורה קודמת או הבאה); Ctrl+חץ ימינה או שמאלה גולל את הדף הצידה כשהוא רחב מהתצוגה.</li>
+          <li>לא השתנה: כל שאר התכונות וההגדרות.</li>
+        </ul>
         <span class="version-tag" data-t-skip>6.0.0</span>
         <ul>
           <li>מעבר מיידי בין לשוניות: במסמכים כבדים (למשל סריקות ברזולוציה גבוהה) המעבר ללשונית אחרת לקח שניות, כי העמוד שהיה פתוח צויר מחדש מאפס. עכשיו העמודים הקרובים לעמוד שהיה פתוח נשמרים בזמן שהלשונית ברקע ומוחזרים מיד בחזרה — העמוד מופיע באותו רגע, והטקסט שלו (לבחירה והעתקה) נבנה מיד אחריו. הזיכרון מוגבל, ולשוניות ישנות מאוד חוזרות להתנהגות הקודמת (ציור מחדש).</li>
@@ -767,6 +796,8 @@
 <script src="./js/viewer.js"></script>
 <script src="./js/find.js"></script>
 <script src="./js/columns.js"></script>
+<script src="./vendor/mishkefet-runtime.js"></script>
+<script src="./js/mishkefet.js"></script>
 <script src="./js/ocr.js"></script>
 <script src="./js/pdftext.js"></script>
 <script src="./js/files.js"></script>
