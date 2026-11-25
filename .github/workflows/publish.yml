@@ -22,6 +22,8 @@ on:
       - 'manifest.json'
       - 'index.html'
       - 'vendor/**'
+      - 'js/**'
+      - 'tools/**'
       - 'CHANGELOG.md'
       - '.otzignore'
       - '.github/workflows/publish.yml'
@@ -147,6 +149,16 @@ jobs:
         if: steps.release_check.outputs.exists == 'false'
         run: curl -sSfL -o mishkefet-v1.bin https://raw.githubusercontent.com/Hadabadra/pdf-viewer/mishkefet-model/mishkefet-v1.bin
 
+      - name: גרסה מלאה עם מודל כתב היד מובנה (רק ב-Release, גדולה מ-50MB)
+        if: steps.release_check.outputs.exists == 'false'
+        id: full
+        env:
+          PLUGIN_FILE: ${{ steps.otzaria.outputs.plugin-file }}
+        run: |
+          out="$(basename "${PLUGIN_FILE%.otzplugin}")-full.otzplugin"
+          python3 tools/build_full.py "$PLUGIN_FILE" mishkefet-v1.bin "$out"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+
       - name: יצירת GitHub Release
         if: steps.release_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -158,4 +170,5 @@ jobs:
           files: |
             ${{ steps.otzaria.outputs.plugin-file }}
             mishkefet-v1.bin
+            ${{ steps.full.outputs.file }}
           body_path: release-notes.md

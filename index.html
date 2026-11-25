@@ -43,6 +43,15 @@
           <span class="page-total" id="page-total" data-t-skip>/ –</span>
         </div>
         <button class="tb-btn" id="btn-next" title="העמוד הבא (PageDown)" disabled><i data-icon="s_chevron_down"></i></button>
+        <span class="anchor">
+          <button class="tb-btn" id="btn-bookmarks" title="סימניות: שמירת מקומות בקובץ וחזרה אליהם" disabled><i data-icon="bookmark"></i></button>
+          <div class="popover start history-pop" id="bookmarks-menu">
+            <button class="menu-item" id="bm-add"><i data-icon="add"></i><span class="mi-text">סימנייה לעמוד הנוכחי</span></button>
+            <div class="section-label"><i data-icon="bookmark"></i><span class="grow">הסימניות בקובץ הזה</span></div>
+            <ul class="list" id="bm-list"></ul>
+            <div class="panel-empty" id="bm-empty">אין עדיין סימניות בקובץ הזה</div>
+          </div>
+        </span>
       </div>
       <div class="tb-sep"></div>
       <div class="tb-group">
@@ -421,12 +430,17 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>6.2.0</span>
+        <ul>
+          <li><b>חדש: סימניות</b> — כפתור הסימנייה ליד מספר העמוד שומר כמה מקומות בקובץ, וחוזרים אליהם בלחיצה.</li>
+          <li><b>גרסה מלאה בגיטהאב</b> עם מודל כתב היד מובנה, בלי הורדה ראשונה: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/releases/latest">דף הגרסאות</a> (הקובץ שמסתיים ב-full). היא גדולה ממגבלת החנות.</li>
+          <li>הפיתוח של חד בדרא מושהה. מחכים למי שרוצה להמשיך: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer">קוד המקור</a> · <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/issues/new">בקשת הצטרפות</a></li>
+        </ul>
         <span class="version-tag" data-t-skip>6.1.0</span>
         <ul>
           <li><b>חדש: זיהוי כתב יד עם „משקפת“</b> (Mishkefet-v1 של איתי ענבר). בהגדרות ← OCR ← מנוע זיהוי בוחרים „כתב יד — משקפת“. המודל (כ-58MB) גדול ממגבלת החנות, ולכן הוא יורד פעם אחת בזיהוי הראשון ונשמר במחשב. בלי רשת אפשר להוריד את הקובץ <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/raw/mishkefet-model/mishkefet-v1.bin">מכאן</a> ולבחור אותו בהגדרות.</li>
           <li>אם המודל לא זמין, הזיהוי ממשיך ב-Tesseract ומוצגת הודעה.</li>
           <li>אריה (arye000001-boop) נוסף כמחבר. כל התיקונים שלו מ-6.0.1 ו-6.0.2 כלולים.</li>
-          <li>הפיתוח של חד בדרא מושהה. מחכים למי שרוצה להמשיך: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer">קוד המקור</a> · <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/issues/new">בקשת הצטרפות</a></li>
         </ul>
         <span class="version-tag" data-t-skip>6.0.2</span>
         <ul>
@@ -806,6 +820,7 @@
 <script src="./js/tabs.js"></script>
 <script src="./js/pagecolor.js"></script>
 <script src="./js/app.js"></script>
+<script src="./js/bookmarks.js"></script>
 <script src="./js/openwith.js"></script>
 <script src="./js/pdftools.js"></script>
 </body>

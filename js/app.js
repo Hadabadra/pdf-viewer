@@ -66,6 +66,7 @@
     const paged = V.isPaged();
     $('btn-prev').disabled = !paged || V.page <= 1;
     $('btn-next').disabled = !paged || V.page >= V.count;
+    if ($('btn-bookmarks')) $('btn-bookmarks').disabled = !paged;
     $('page-input').disabled = !paged;
     if (document.activeElement !== $('page-input')) $('page-input').value = paged ? V.page : '';
     $('page-total').textContent = paged ? '/ ' + V.count : '/ –';

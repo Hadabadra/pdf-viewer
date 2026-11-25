@@ -55,6 +55,27 @@
   }
   const b64 = (s) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
 
+  /** גרסה מלאה (מהגיטהאב): המודל ארוז בתוסף כ-vendor/mishkefet-model/mk.<n>.js (base64 של gzip) ונטען בתגי script —
+   *  WHY: fetch לקובץ מקומי מהחבילה לא עובד ב-WebView של אוצריא */
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.onload = () => { s.remove(); resolve(); };
+      s.onerror = () => reject(new Error('script ' + src));
+      s.src = src; document.head.appendChild(s);
+    });
+  }
+  async function embedded(stage) {
+    const E = window.__MK_EMBED__;
+    if (!E || !E.n) return null;
+    stage(PV.t('טוען את מודל כתב היד מהתוסף...'));
+    const parts = window.__MK_CHUNKS__ = window.__MK_CHUNKS__ || {};
+    for (let k = 0; k < E.n; k++) if (!parts[k]) await loadScript('./vendor/mishkefet-model/mk.' + k + '.js');
+    const gz = new Blob(Array.from({ length: E.n }, (_, k) => b64(parts[k])));
+    window.__MK_CHUNKS__ = null;
+    return await new Response(gz.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+  }
+
   async function download(stage) {
     stage(PV.t('מוריד את מודל כתב היד (פעם אחת, כ-58MB)...'));
     const f = await PV.call('network.fetchFile', { url: M.MODEL_URL, maxBytes: 100 * 1024 * 1024, timeoutMs: 600000 });
@@ -80,7 +101,7 @@
     if (!assetsPromise) assetsPromise = (async () => {
       let buf = await cacheGet();
       if (!buf) {
-        try { buf = await download(stage); }
+        try { buf = (await embedded(stage)) || await download(stage); }
         catch (e) {
           const err = new Error(PV.t('לא ניתן להוריד את מודל כתב היד ({r}). אפשר להוריד אותו ידנית ולבחור אותו בהגדרות ← OCR.', { r: PV.errMsg(e) }));
           err.code = 'mishkefet.model'; throw err;
