@@ -246,6 +246,7 @@
   function warnFallback() {
     const r = O.lastRun;
     if (r && r.engine === 'snip-ui') PV.toast(PV.t('המנוע הישיר לא עבד, הזיהוי בוצע דרך כלי החיתוך: {r}', { r: r.reason || '' }), { long: true });
+    else if (r && !r.bridgeMissing) PV.toast(PV.t('חולץ באמצעות: {e}', { e: runLabel() }));
   }
 
   /** "1-5, 8, 10-12" → [1,2,3,4,5,8,10,11,12]; null אם הפורמט שגוי, [] אם אין עמודים בתחום */
@@ -389,21 +390,24 @@
       if (O.mixedOn()) {
         // מעורב עם Windows: Windows לעברית + Tesseract (מודל רש"י) לשורות ברש"י. אם המנוע הישיר לא זמין — Tesseract מעורב
         if (await hybridOk()) {
-          const lines = await hybridLines(source, onProgress);
-          O.lastRun = { engine: 'hybrid', rashiModel: usedRashi[tagFor('rashi')] || rashiPart() };
-          return tidy(lines.map((l) => l.text).filter(Boolean).join('\n'));
-        }
-        if (await bridgeNotFound()) { noBridge = true; toastBridgeMissing(); } else warnNoDirect();   // 6.0.1: הגשר לא נמצא — הודעה ייעודית
+          try {
+            const lines = await hybridLines(source, onProgress);
+            O.lastRun = { engine: 'hybrid', rashiModel: usedRashi[tagFor('rashi')] || rashiPart() };
+            return tidy(lines.map((l) => l.text).filter(Boolean).join('\n'));
+          } catch (e) { noBridge = true; toastBridgeFailed(e); }
+        } else if (await bridgeNotFound()) { noBridge = true; toastBridgeMissing(); } else warnNoDirect();   // 6.0.1: הגשר לא נמצא — הודעה ייעודית
       } else if (await bridgeNotFound()) {
         // 6.0.1: הגשר לא נמצא (לא מותקן / לא פועל) — לא נכשלים, אלא עוברים למודל הרגיל (Tesseract) ומודיעים על כך
         noBridge = true;
         toastBridgeMissing();
       } else {
         // כלי החיתוך של Windows דרך הגשר. בכשל אחר (גרסה ישנה, שגיאת זיהוי…) — שגיאה גלויה, בלי מעבר שקט ל-Tesseract
-        const t = await PV.bridge.snipRecognizeCanvas(source);
-        O.lastRun = PV.bridge.lastRun;
-        if (onProgress) onProgress(1);
-        return tidy(t);
+        try {
+          const t = await PV.bridge.snipRecognizeCanvas(source);
+          O.lastRun = PV.bridge.lastRun;
+          if (onProgress) onProgress(1);
+          return tidy(t);
+        } catch (e) { noBridge = true; toastBridgeFailed(e); }   // הגשר לא עבד: ממשיכים במודל המובנה
       }
     }
     const kind = scriptKind();
@@ -479,6 +483,10 @@
     if (info) { bridgeMissUntil = 0; return false; }
     bridgeMissUntil = Date.now() + 20000;
     return true;
+  }
+  function toastBridgeFailed(e) {
+    bridgeToastAt = Date.now();
+    PV.toast(PV.t('הגשר לא עבד ({r}) — הטקסט חולץ במודל המובנה (Tesseract)', { r: PV.errMsg(e) }), { long: true });
   }
   function toastBridgeMissing() {
     if (Date.now() - bridgeToastAt < 30000) return;
@@ -646,7 +654,7 @@
     const noOcr = !!(opts && opts.noOcr);
     if (V.doc.kind === 'pdf') {
       const text = await V.getPageText(page);
-      if (text) { O.show(text, { title: PV.t('טקסט מוטבע — עמוד {n}', { n: page }), sub: docLabel(), source: 'embedded' }); return; }
+      if (text) { O.show(text, { title: PV.t('טקסט מוטבע — עמוד {n}', { n: page }), sub: docLabel(), source: 'embedded' }); PV.toast(PV.t('חולץ הטקסט המוטבע בקובץ (בלי OCR)')); return; }
       if (noOcr) { PV.toast(PV.t('אין טקסט מוטבע בעמוד')); return; }
       PV.toast(PV.t('אין טקסט מוטבע בעמוד — מריץ OCR…'));
     } else if (noOcr) { PV.toast(PV.t('אין טקסט מוטבע במסמך הזה')); return; }
@@ -763,7 +771,7 @@
       O.show(parts.join('\n\n'), { title, sub: label + (useOcr && O.lastRun ? ' · ' + runLabel(secPerPage) + ' / ' + PV.t('עמוד') : ''), source: useOcr ? 'ocr' : 'embedded', doc: docAtStart });
       if (cancelled) PV.toast(PV.t('הופסק אחרי {n} עמודים', { n: parts.length }) + (inBackground() ? ' · «' + label + '»' : ''));
       else {
-        PV.toast(PV.t('הושלם: {n} עמודים', { n: parts.length }) + (inBackground() ? ' · «' + label + '»' : '') + (useOcr && O.lastRun ? ' · ' + runLabel(secPerPage) : ''));
+        PV.toast(PV.t('הושלם: {n} עמודים', { n: parts.length }) + (inBackground() ? ' · «' + label + '»' : '') + (useOcr ? (O.lastRun ? ' · ' + runLabel(secPerPage) : '') : ' · ' + PV.t('טקסט מוטבע')));
         const fb = st0 ? PV.bridge.stats.fb - st0.fb : 0;
         if (fb > 0) PV.toast(PV.t('{n} עמודים עברו דרך כלי החיתוך', { n: fb }) + ': ' + (O.lastRun && O.lastRun.reason || ''), { long: true });
       }
@@ -825,7 +833,7 @@
     if (regionMode === 'extract') {
       regionMode = 'ocr';
       const embedded = await textInRegion(page, d.rect);
-      if (embedded) O.show(embedded, { title: PV.t('טקסט מוטבע — אזור בעמוד {n}', { n: page }), sub: docLabel(), source: 'embedded' });
+      if (embedded) { O.show(embedded, { title: PV.t('טקסט מוטבע — אזור בעמוד {n}', { n: page }), sub: docLabel(), source: 'embedded' }); PV.toast(PV.t('חולץ הטקסט המוטבע בקובץ (בלי OCR)')); }
       else PV.toast(PV.t('אין טקסט מוטבע באזור המסומן'));
       return;
     }

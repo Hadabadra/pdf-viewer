@@ -132,6 +132,7 @@
     });
     document.querySelectorAll('#ocr-menu .menu-hint').forEach((h) => { h.hidden = h.dataset.hint !== PV.settings.ocrMode; });
     $('ocr-script').hidden = PV.settings.ocrMode !== 'ocr';   // עברי / רש"י — רק במצב זיהוי
+    $('ocr-engine-quick').hidden = PV.settings.ocrMode !== 'ocr';
     refreshEngineHint();
     updateNav();
   }
@@ -160,7 +161,25 @@
     }
     setOcrScript(b.dataset.script, true);
   }));
+  /** בחירה מהירה של המנוע בתפריט הזיהוי (אותה הגדרה כמו בהגדרות ← OCR) */
+  function syncEngineQuick() {
+    document.querySelectorAll('#ocr-engine-quick .seg-btn').forEach((b) => {
+      const on = b.dataset.engine === PV.settings.ocrEngine;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if ($('set-ocr-engine')) $('set-ocr-engine').value = PV.settings.ocrEngine;
+  }
+  document.querySelectorAll('#ocr-engine-quick .seg-btn').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (PV.settings.ocrEngine === b.dataset.engine) return;
+    PV.settings.ocrEngine = b.dataset.engine;
+    PV.saveSettings();
+    PV.emit('settings', 'ocrEngine');
+  }));
+  syncEngineQuick();
   PV.on('settings', (k) => {
+    if (k === 'ocrEngine') syncEngineQuick();
     if (k === 'ocrEngine' || k === 'rashiModel' || k === 'customHeb' || k === 'customRashi') { refreshEngineHint(); O.resetWorker(); }   // מנועים ישנים משתחררים; הנבחר נטען בזיהוי הבא
   });
   PV.on('language', refreshEngineHint);

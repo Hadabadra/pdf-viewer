@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "com.chadbedera.pdfviewer",
   "name": "צופה PDF+OCR",
-  "version": "6.2.1",
+  "version": "6.2.2",
   "description": "צופה PDF, תמונות ומסמכים בעיצוב אוצריא: חיפוש, תוכן עניינים, OCR בעברית, התיקיות שלי בחיפוש הספרייה ופתיחת ספרי PDF בעמוד הנוכחי.",
   "author": "חד בדרא, arye000001-boop",
   "homepage": "https://github.com/Hadabadra/pdf-viewer",

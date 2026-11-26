@@ -70,6 +70,12 @@
             <button class="seg-btn" data-script="rashi" role="tab"><span>רש"י</span></button>
             <button class="seg-btn" data-script="mixed" role="tab" title="עברית ורש"י יחד"><span>מעורב</span></button>
           </div>
+          <div class="seg" id="ocr-engine-quick" role="tablist" hidden>
+            <button class="seg-btn" data-engine="tesseract" role="tab" title="Tesseract — מדויק (מובנה)"><span>מדויק</span></button>
+            <button class="seg-btn" data-engine="tesseract-fast" role="tab" title="Tesseract — מהיר (מובנה)"><span>מהיר</span></button>
+            <button class="seg-btn" data-engine="snip" role="tab" title="מנוע Windows (דרך הגשר)"><span>Windows</span></button>
+            <button class="seg-btn" data-engine="mishkefet" role="tab" title="כתב יד — משקפת"><span>כתב יד</span></button>
+          </div>
           <button class="menu-item" data-act="run-region"><i data-icon="crop"></i><span class="mi-text">אזור מסומן</span><span class="mi-kbd" data-t-skip>Ctrl+Shift+L</span></button>
           <button class="menu-item" data-act="run-page"><i data-icon="document_text"></i><span class="mi-text">עמוד נוכחי</span><span class="mi-kbd" data-t-skip>Ctrl+Shift+O</span></button>
           <button class="menu-item" data-act="run-all"><i data-icon="document"></i><span class="mi-text">כל המסמך</span></button>
@@ -430,10 +436,16 @@
         <p class="muted">תיקונים לפי הערות המשתמשים בפורום:
           <a href="#" data-url="https://otzaria.org/forum/post/43255">פוסט 43255</a> ·
           <a href="#" data-url="https://otzaria.org/forum/post/43381">פוסט 43381</a></p>
+        <span class="version-tag" data-t-skip>6.2.2</span>
+        <ul>
+          <li>בתפריט הזיהוי: כפתורים מהירים לבחירת המנוע (מדויק, מהיר, Windows, כתב יד).</li>
+          <li>אחרי כל חילוץ מוצגת הודעה קצרה: באיזה מנוע ובאיזה מודל הטקסט חולץ, או שזה הטקסט המוטבע בקובץ.</li>
+          <li>אם נבחר מנוע Windows והגשר לא עובד, הטקסט מחולץ במודל המובנה (Tesseract) ומופיעה הודעה על כך.</li>
+          <li>הפיתוח של חד בדרא מושהה. מחכים למי שרוצה להמשיך: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer">קוד המקור</a> · <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/issues/new">בקשת הצטרפות</a></li>
+        </ul>
         <span class="version-tag" data-t-skip>6.2.1</span>
         <ul>
           <li>גרסה מלאה: בהגדרות מוצג שהמודל ארוז בתוסף ומוכן (במקום "עוד לא הורד"). אם טעינתו מהתוסף נכשלת, מנסים להוריד.</li>
-          <li>הפיתוח של חד בדרא מושהה. מחכים למי שרוצה להמשיך: <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer">קוד המקור</a> · <a href="#" data-url="https://github.com/Hadabadra/pdf-viewer/issues/new">בקשת הצטרפות</a></li>
         </ul>
         <span class="version-tag" data-t-skip>6.2.0</span>
         <ul>
