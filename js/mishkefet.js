@@ -42,6 +42,8 @@
     try { const db = await idb(); await new Promise((r) => { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).delete(KEY); t.oncomplete = r; t.onerror = r; }); } catch (e) { /* */ }
   };
   M.isCached = async () => !!(await cacheGet());
+  /** גרסה מלאה: המודל ארוז בתוסף (אין צורך בהורדה) */
+  M.isEmbedded = () => !!(window.__MK_EMBED__ && window.__MK_EMBED__.n);
 
   /** קובץ המודל: MKF1 + אורך כותרת + JSON (שם, מיקום ואורך של כל חלק) + הבייטים */
   function parseContainer(buf) {
@@ -101,7 +103,7 @@
     if (!assetsPromise) assetsPromise = (async () => {
       let buf = await cacheGet();
       if (!buf) {
-        try { buf = (await embedded(stage)) || await download(stage); }
+        try { buf = await embedded(stage).catch(() => null) || await download(stage); }
         catch (e) {
           const err = new Error(PV.t('לא ניתן להוריד את מודל כתב היד ({r}). אפשר להוריד אותו ידנית ולבחור אותו בהגדרות ← OCR.', { r: PV.errMsg(e) }));
           err.code = 'mishkefet.model'; throw err;

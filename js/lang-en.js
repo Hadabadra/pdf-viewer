@@ -306,6 +306,7 @@ window.PV_LANG_EN = {
   'אין עדיין סימניות בקובץ הזה': 'No bookmarks in this file yet',
   'מחיקת הסימנייה': 'Delete bookmark',
   'טוען את מודל כתב היד מהתוסף...': 'Loading the handwriting model from the plugin...',
+  'המודל ארוז בתוסף (גרסה מלאה) ומוכן. בזיהוי הראשון בכתב יד הוא נטען ונשמר במחשב.': 'The model is bundled in this plugin (full version) and ready. It is loaded and saved on the first handwriting recognition.',
   'עמוד {n} מתוך {t}…': 'Page {n} of {t}…',
   'עמוד שלם': 'Whole page',
   'עמודים': 'Pages',

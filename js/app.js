@@ -817,6 +817,7 @@
     bindSetting('set-ocr-engine', 'ocrEngine');
     const mkStatus = async () => {
       const on = PV.mishkefet && await PV.mishkefet.isCached();
+      if (!on && PV.mishkefet && PV.mishkefet.isEmbedded()) { $('mk-status').textContent = PV.t('המודל ארוז בתוסף (גרסה מלאה) ומוכן. בזיהוי הראשון בכתב יד הוא נטען ונשמר במחשב.'); return; }
       $('mk-status').textContent = on ? PV.t('המודל שמור במחשב ומוכן לשימוש.') : PV.t('המודל עוד לא הורד. הוא יורד אוטומטית בזיהוי הראשון בכתב יד (כ-58MB), או שאפשר לבחור קובץ שהורד ידנית.');
     };
     mkStatus();
